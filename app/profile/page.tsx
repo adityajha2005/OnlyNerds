@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, CourseWithRanking, Category, Difficulty } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,78 +11,169 @@ import { FaGithub, FaXTwitter, FaLinkedin, FaThumbsUp, FaThumbsDown } from 'reac
 import { TbTrophy } from 'react-icons/tb';
 import Image from 'next/image';
 import { Navbar } from '@/components/ui/Navbar';
+import { useMetaMaskStore } from '@/lib/stores/metamask-store';
+import { updateUser, getUser, createUser, checkUserProfileComplete } from '@/lib/actions/user.actions';
+import { getUserCourses } from '@/lib/actions/course.actions';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 export default function ProfilePage() {
+  const router = useRouter();
+  const { metaMaskIsConnected, walletAddress } = useMetaMaskStore();
   const [isEditing, setIsEditing] = useState(false);
-  const [user, setUser] = useState<Partial<User>>({
-    name: 'John Doe',
-    email: 'john@example.com',
-    bio: 'Software developer passionate about building great products.',
-    avatar: 'https://github.com/shadcn.png',
-    socials: {
-      github: 'https://github.com/johndoe',
-      x: 'https://x.com/johndoe',
-      linkedin: 'https://linkedin.com/in/johndoe'
-    }
-  });
+  const [user, setUser] = useState<Partial<User>>({});
+  const [courses, setCourses] = useState<CourseWithRanking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Mock courses data with ranking and background images - replace with actual API call
-  const [courses] = useState<CourseWithRanking[]>([
-    {
-      _id: '1',
-      name: 'Introduction to Web3',
-      description: 'Learn the basics of Web3 development',
-      background: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=2832&auto=format&fit=crop',
-      creator_id: user._id || '',
-      isPublic: true,
-      categories: ['Web3'],
-      difficulty: 'Beginner',
-      isOriginal: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ranking: {
-        _id: '1',
-        creator_id: user._id || '',
-        upvotes: 150,
-        downvotes: 10,
-        eloScore: 1800,
-        createdAt: new Date(),
-        updatedAt: new Date()
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!metaMaskIsConnected || !walletAddress) {
+        router.push('/'); // Redirect to home if not connected
+        return;
       }
-    },
-    {
-      _id: '2',
-      name: 'Advanced AI/ML Concepts',
-      description: 'Deep dive into AI and Machine Learning',
-      background: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=2832&auto=format&fit=crop',
-      creator_id: user._id || '',
-      isPublic: true,
-      categories: ['AI/ML'],
-      difficulty: 'Advanced',
-      isOriginal: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ranking: {
-        _id: '2',
-        creator_id: user._id || '',
-        upvotes: 280,
-        downvotes: 20,
-        eloScore: 2100,
-        createdAt: new Date(),
-        updatedAt: new Date()
+      
+      try {
+        // Try to fetch existing user data
+        const userData = await getUser(walletAddress);
+        if (userData) {
+          setUser(userData);
+          setIsNewUser(false);
+        } else {
+          setUser({});
+          setIsNewUser(true);
+        }
+
+        // Check if profile is complete
+        const isComplete = await checkUserProfileComplete(walletAddress);
+        if (!isComplete) {
+          setIsEditing(true);
+        }
+
+        // Fetch user's courses and ensure type safety
+        const userCourses = await getUserCourses(walletAddress);
+        const validCourses = (userCourses || [])
+          .filter((course): course is NonNullable<typeof course> => course !== null)
+          .map(course => ({
+            _id: course._id,
+            name: course.name,
+            description: course.description || '',
+            background: course.background,
+            creator_id: course.creator_id,
+            isPublic: course.isPublic,
+            categories: course.categories,
+            difficulty: course.difficulty,
+            isOriginal: course.isOriginal,
+            forkedFrom: course.forkedFrom,
+            createdAt: new Date(course.createdAt),
+            updatedAt: new Date(course.updatedAt),
+            ranking: course.ranking ? {
+              _id: course.ranking._id,
+              creator_id: course.ranking.creator_id,
+              upvotes: course.ranking.upvotes,
+              downvotes: course.ranking.downvotes,
+              eloScore: course.ranking.eloScore,
+              createdAt: new Date(course.ranking.createdAt),
+              updatedAt: new Date(course.ranking.updatedAt)
+            } : undefined
+          })) as CourseWithRanking[];
+        
+        setCourses(validCourses);
+      } catch (error) {
+        // If user doesn't exist, create a new one
+        if ((error as Error).message.includes('User not found')) {
+          const newUser = await createUser(walletAddress);
+          if (newUser) {
+            setUser(newUser);
+            setIsNewUser(true);
+            setIsEditing(true); // Automatically open edit form for new users
+          } else {
+            setUser({});
+            toast.error('Failed to create user profile');
+          }
+        } else {
+          console.error('Error fetching data:', error);
+          toast.error('Failed to load profile data');
+        }
+      } finally {
+        setIsLoading(false);
       }
+    };
+
+    fetchData();
+  }, [metaMaskIsConnected, walletAddress, router]);
+
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+
+    if (!user.name || user.name.length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
     }
-  ]);
+    if (!user.email || !/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(user.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    if (!user.bio || user.bio.length < 10) {
+      newErrors.bio = 'Bio must be at least 10 characters';
+    }
+    if (user.avatar && !/^(https?:\/\/)?.+\..+/.test(user.avatar)) {
+      newErrors.avatar = 'Please enter a valid URL';
+    }
+    if (user.socials?.github && !user.socials.github.startsWith('https://github.com/')) {
+      newErrors.github = 'Please enter a valid GitHub URL';
+    }
+    if (user.socials?.x && !user.socials.x.startsWith('https://x.com/')) {
+      newErrors.x = 'Please enter a valid X/Twitter URL';
+    }
+    if (user.socials?.linkedin && !user.socials.linkedin.startsWith('https://linkedin.com/')) {
+      newErrors.linkedin = 'Please enter a valid LinkedIn URL';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!walletAddress) return;
+
+    if (!validateForm()) {
+      toast.error('Please fix the errors in the form');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await updateUser({
+        userId: walletAddress,
+        name: user.name || '',
+        bio: user.bio,
+        avatar: user.avatar,
+        email: user.email,
+        socials: user.socials
+      });
+
+      if (result.success) {
+        toast.success('Profile updated successfully');
+        setIsEditing(false);
+        setIsNewUser(false);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Sort courses by eloScore
   const sortedCourses = [...courses].sort((a, b) => 
     (b.ranking?.eloScore || 0) - (a.ranking?.eloScore || 0)
   );
-
-  const handleSave = async () => {
-    // TODO: Implement save functionality
-    setIsEditing(false);
-  };
 
   const getDifficultyColor = (difficulty: Difficulty) => {
     switch(difficulty) {
@@ -117,14 +208,49 @@ export default function ProfilePage() {
     return 'text-white/60';
   };
 
+  const isProfileIncomplete = !user.name || !user.email || !user.bio;
+
+  if (!metaMaskIsConnected) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white text-xl">Please connect your MetaMask wallet to view your profile</div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black">
       <div className="container mx-auto py-8 px-4">
         <Navbar />
         <div className="max-w-4xl mx-auto space-y-8">
+          {isProfileIncomplete && !isEditing && (
+            <Alert variant="destructive" className="mb-6 bg-red-500/10 border-red-500/20 text-red-500">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Please complete your profile by adding your name, email, and bio to start creating courses.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Card className="mt-[60px] border-2 border-white/20 shadow-lg bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/60">
             <CardHeader>
-              <CardTitle className="text-3xl font-bold text-white mt-4">Profile</CardTitle>
+              <CardTitle className="text-3xl font-bold text-white mt-4">
+                {isNewUser ? 'Welcome to OnlyNerds!' : 'Profile'}
+              </CardTitle>
+              {isNewUser && (
+                <p className="text-white/60 mt-2">
+                  Please complete your profile to start creating and sharing courses.
+                  Add your details below to get started.
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               <div className="flex flex-col md:flex-row gap-8">
@@ -143,38 +269,42 @@ export default function ProfilePage() {
                   {isEditing ? (
                     <div className="space-y-4">
                       <div>
-                        <label className="text-sm font-medium text-white">Name</label>
+                        <label className="text-sm font-medium text-white">Name *</label>
                         <Input
                           value={user.name}
                           onChange={(e) => setUser({ ...user, name: e.target.value })}
-                          className="mt-1 bg-black/50 text-white border-white/20"
+                          className={`mt-1 bg-black/50 text-white border-white/20 ${errors.name ? 'border-red-500' : ''}`}
                         />
+                        {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-white">Email</label>
+                        <label className="text-sm font-medium text-white">Email *</label>
                         <Input
                           type="email"
                           value={user.email}
                           onChange={(e) => setUser({ ...user, email: e.target.value })}
-                          className="mt-1 bg-black/50 text-white border-white/20"
+                          className={`mt-1 bg-black/50 text-white border-white/20 ${errors.email ? 'border-red-500' : ''}`}
                         />
+                        {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-white">Bio</label>
+                        <label className="text-sm font-medium text-white">Bio *</label>
                         <Textarea
                           value={user.bio}
                           onChange={(e) => setUser({ ...user, bio: e.target.value })}
-                          className="mt-1 bg-black/50 text-white border-white/20"
+                          className={`mt-1 bg-black/50 text-white border-white/20 ${errors.bio ? 'border-red-500' : ''}`}
                           rows={4}
                         />
+                        {errors.bio && <p className="text-red-500 text-sm mt-1">{errors.bio}</p>}
                       </div>
                       <div>
                         <label className="text-sm font-medium text-white">Avatar URL</label>
                         <Input
                           value={user.avatar}
                           onChange={(e) => setUser({ ...user, avatar: e.target.value })}
-                          className="mt-1 bg-black/50 text-white border-white/20"
+                          className={`mt-1 bg-black/50 text-white border-white/20 ${errors.avatar ? 'border-red-500' : ''}`}
                         />
+                        {errors.avatar && <p className="text-red-500 text-sm mt-1">{errors.avatar}</p>}
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-white">Social Links</label>
@@ -185,27 +315,30 @@ export default function ProfilePage() {
                               ...user,
                               socials: { ...user.socials, github: e.target.value }
                             })}
-                            placeholder="GitHub URL"
-                            className="mt-1 bg-black/50 text-white border-white/20"
+                            placeholder="GitHub URL (https://github.com/...)"
+                            className={`mt-1 bg-black/50 text-white border-white/20 ${errors.github ? 'border-red-500' : ''}`}
                           />
+                          {errors.github && <p className="text-red-500 text-sm mt-1">{errors.github}</p>}
                           <Input
                             value={user.socials?.x}
                             onChange={(e) => setUser({
                               ...user,
                               socials: { ...user.socials, x: e.target.value }
                             })}
-                            placeholder="X/Twitter URL"
-                            className="mt-1 bg-black/50 text-white border-white/20"
+                            placeholder="X/Twitter URL (https://x.com/...)"
+                            className={`mt-1 bg-black/50 text-white border-white/20 ${errors.x ? 'border-red-500' : ''}`}
                           />
+                          {errors.x && <p className="text-red-500 text-sm mt-1">{errors.x}</p>}
                           <Input
                             value={user.socials?.linkedin}
                             onChange={(e) => setUser({
                               ...user,
                               socials: { ...user.socials, linkedin: e.target.value }
                             })}
-                            placeholder="LinkedIn URL"
-                            className="mt-1 bg-black/50 text-white border-white/20"
+                            placeholder="LinkedIn URL (https://linkedin.com/...)"
+                            className={`mt-1 bg-black/50 text-white border-white/20 ${errors.linkedin ? 'border-red-500' : ''}`}
                           />
+                          {errors.linkedin && <p className="text-red-500 text-sm mt-1">{errors.linkedin}</p>}
                         </div>
                       </div>
                     </div>
@@ -253,21 +386,26 @@ export default function ProfilePage() {
                   
                   <div className="flex justify-end gap-4 pt-4">
                     {isEditing ? (
-                      <>
+                      <div className="flex justify-end gap-4 pt-4">
                         <Button
                           variant="outline"
-                          onClick={() => setIsEditing(false)}
+                          onClick={() => {
+                            setIsEditing(false);
+                            setErrors({});
+                          }}
                           className="bg-white text-black hover:bg-white/90"
+                          disabled={isSaving}
                         >
                           Cancel
                         </Button>
                         <Button 
                           onClick={handleSave}
                           className="bg-white text-black hover:bg-white/90"
+                          disabled={isSaving}
                         >
-                          Save Changes
+                          {isSaving ? 'Saving...' : 'Save Changes'}
                         </Button>
-                      </>
+                      </div>
                     ) : (
                       <Button 
                         onClick={() => setIsEditing(true)}
