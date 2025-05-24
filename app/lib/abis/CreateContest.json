@@ -1,0 +1,114 @@
+[
+    {
+      "type": "function",
+      "name": "contests",
+      "inputs": [
+        { "name": "", "type": "uint256", "internalType": "uint256" }
+      ],
+      "outputs": [
+        { "name": "contestName", "type": "string", "internalType": "string" },
+        { "name": "contestType", "type": "string", "internalType": "string" },
+        { "name": "isActive", "type": "bool", "internalType": "bool" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "createContest",
+      "inputs": [
+        { "name": "_contestName", "type": "string", "internalType": "string" },
+        { "name": "_questions", "type": "tuple[]", "internalType": "struct CreateContest.Question[]", "components": [
+          { "name": "questionText", "type": "string", "internalType": "string" },
+          { "name": "options", "type": "string[]", "internalType": "string[]" },
+          { "name": "correctOptionIndex", "type": "uint256", "internalType": "uint256" }
+        ]}
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "getContest",
+      "inputs": [
+        { "name": "_contestId", "type": "uint256", "internalType": "uint256" }
+      ],
+      "outputs": [
+        { "name": "", "type": "tuple", "internalType": "struct CreateContest.Contest", "components": [
+          { "name": "contestName", "type": "string", "internalType": "string" },
+          { "name": "contestType", "type": "string", "internalType": "string" },
+          { "name": "questions", "type": "tuple[]", "internalType": "struct CreateContest.Question[]", "components": [
+            { "name": "questionText", "type": "string", "internalType": "string" },
+            { "name": "options", "type": "string[]", "internalType": "string[]" },
+            { "name": "correctOptionIndex", "type": "uint256", "internalType": "uint256" }
+          ]},
+          { "name": "isActive", "type": "bool", "internalType": "bool" }
+        ]}
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getParticipantScore",
+      "inputs": [
+        { "name": "_contestId", "type": "uint256", "internalType": "uint256" },
+        { "name": "_participant", "type": "address", "internalType": "address" }
+      ],
+      "outputs": [
+        { "name": "", "type": "uint256", "internalType": "uint256" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "hasParticipated",
+      "inputs": [
+        { "name": "", "type": "uint256", "internalType": "uint256" },
+        { "name": "", "type": "address", "internalType": "address" }
+      ],
+      "outputs": [
+        { "name": "", "type": "bool", "internalType": "bool" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "participantScores",
+      "inputs": [
+        { "name": "", "type": "uint256", "internalType": "uint256" },
+        { "name": "", "type": "address", "internalType": "address" }
+      ],
+      "outputs": [
+        { "name": "", "type": "uint256", "internalType": "uint256" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "submitAnswers",
+      "inputs": [
+        { "name": "_contestId", "type": "uint256", "internalType": "uint256" },
+        { "name": "_selectedOptions", "type": "uint256[]", "internalType": "uint256[]" }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "event",
+      "name": "ContestCreated",
+      "inputs": [
+        { "name": "contestId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+        { "name": "contestName", "type": "string", "indexed": false, "internalType": "string" }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ContestSubmitted",
+      "inputs": [
+        { "name": "contestId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+        { "name": "participant", "type": "address", "indexed": true, "internalType": "address" },
+        { "name": "score", "type": "uint256", "indexed": false, "internalType": "uint256" }
+      ],
+      "anonymous": false
+    }
+  ]
