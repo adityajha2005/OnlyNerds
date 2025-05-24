@@ -2,13 +2,8 @@ import mongoose from "mongoose";
 
 
 const moduleSchema = new mongoose.Schema({
-    _id: {
-        type: String,
-        required: true,
-        unique: true,
-    },
     course_id : {
-        type: mongoose.Schema.Types.ObjectId, 
+        type: String, 
         ref: 'Course',
         required : true,
     },   

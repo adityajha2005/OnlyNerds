@@ -2,21 +2,11 @@ import mongoose from "mongoose";
 
 
 const courseRankingSchema = new mongoose.Schema({
-    _id: {
-        type: String,
-        required: true,
-        unique: true,
-    },
     creator_id : {
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User',
+        type: String,
         required : true,
     },
-    course_id : {
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Course',
-        required : true,
-    },
+    course_id: { type: String, ref: 'Course', required: true }, 
     upvotes : {
         type : Number,
         required : true,

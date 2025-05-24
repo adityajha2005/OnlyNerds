@@ -22,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMetaMaskStore } from "@/lib/stores/metamask-store";
 
 const routes = [
@@ -37,9 +37,9 @@ const routes = [
     href: "/courses",
   },
   {
-    label: "My Forks",
+    label: "My Courses",
     icon: GitFork,
-    href: "/my-forks",
+    href: "/my-courses",
   },
   {
     label: "Challenges",
@@ -58,6 +58,12 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { metaMaskIsConnected, walletAddress, connectMetaMask, disconnectMetaMask } = useMetaMaskStore();
 
+  useEffect(() => {
+    if (walletAddress && walletAddress !== null) {
+      localStorage.setItem('walletAddress', walletAddress);
+    }
+  }, [walletAddress]);
+  
   return (
     <nav className="fixed top-0 left-0 right-0 z-20 border-b border-white/10 bg-black/20 backdrop-blur-xl">
       <div className="container mx-auto px-4 py-3 md:px-6 lg:px-8">

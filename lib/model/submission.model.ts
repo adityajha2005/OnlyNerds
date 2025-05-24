@@ -9,7 +9,15 @@ const submissionSchema = new mongoose.Schema({
     },
     assessments_id : {
         type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Module',
+        ref: 'Asessment',
+    },
+    challenge_id : {
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Challenge',
+    },
+    submitted_by : {
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'User',
         required : true,
     },
     type : {
@@ -24,8 +32,18 @@ const submissionSchema = new mongoose.Schema({
                 return /^(https?:\/\/)?.+\..+/.test(v);
             },
             message: 'Please enter a valid URL'
-        }
+        },
+        required : false,
     },
+    status : {
+        type: String,
+        enum : ["pending", "accepted","rejected"],
+        required: true,
+    },
+    feedback : {
+        type: String,
+        required: false,
+    }
 }, { 
     timestamps: true,
 });
