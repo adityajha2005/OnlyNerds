@@ -1,0 +1,12 @@
+@font-face {
+    font-family: 'Funnel Display';
+    src: url('/fonts/Funnel_Display/static/FunnelDisplay-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  /* Helper class to use the font */
+  .funnel-font {
+    font-family: 'Funnel Display', sans-serif;
+  }
