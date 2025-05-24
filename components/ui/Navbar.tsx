@@ -44,8 +44,14 @@ const routes = [
   {
     label: "Challenges",
     icon: Trophy,
-    href: "/challenges",
-  }
+
+    href: "/contests",
+  },
+  {
+    label: "Community",
+    icon: Users,
+    href: "/community",
+  },
 ];
 
 export function Navbar() {
