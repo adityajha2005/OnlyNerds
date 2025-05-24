@@ -65,7 +65,7 @@ export function Navbar() {
           {/* Logo and Brand */}
           <div className="flex items-center gap-x-3">
             <Link href="/" className="flex items-center gap-x-2">
-              <div className="text-primary w-8 h-8">
+              <div className="text-white w-8 h-8">
                 <svg viewBox="0 0 32 32" fill="currentColor">
                   <path
                     fillRule="evenodd"
@@ -115,7 +115,7 @@ export function Navbar() {
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-x-2 border-primary text-primary hover:bg-primary/10 funnel-font"
+                className="gap-x-2 border-primary text-primary hover:10 funnel-font"
                 onClick={connectMetaMask}
               >
                 <Wallet className="w-4 h-4" />
@@ -219,4 +219,4 @@ export function Navbar() {
       </div>
     </nav>
   );
-} 
+}
