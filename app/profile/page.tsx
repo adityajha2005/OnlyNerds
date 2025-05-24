@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { User } from '@/lib/types';
+import { User, CourseWithRanking, Category, Difficulty } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FaGithub, FaXTwitter, FaLinkedin } from 'react-icons/fa6';
+import { Badge } from '@/components/ui/badge';
+import { FaGithub, FaXTwitter, FaLinkedin, FaThumbsUp, FaThumbsDown } from 'react-icons/fa6';
+import { TbTrophy } from 'react-icons/tb';
 import Image from 'next/image';
 import { Navbar } from '@/components/ui/Navbar';
 
@@ -24,9 +26,93 @@ export default function ProfilePage() {
     }
   });
 
+  // Mock courses data with ranking - replace with actual API call
+  const [courses] = useState<CourseWithRanking[]>([
+    {
+      _id: '1',
+      name: 'Introduction to Web3',
+      description: 'Learn the basics of Web3 development',
+      creator_id: user._id || '',
+      isPublic: true,
+      categories: ['Web3'],
+      difficulty: 'Beginner',
+      isOriginal: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ranking: {
+        _id: '1',
+        creator_id: user._id || '',
+        upvotes: 150,
+        downvotes: 10,
+        eloScore: 1800,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    },
+    {
+      _id: '2',
+      name: 'Advanced AI/ML Concepts',
+      description: 'Deep dive into AI and Machine Learning',
+      creator_id: user._id || '',
+      isPublic: true,
+      categories: ['AI/ML'],
+      difficulty: 'Advanced',
+      isOriginal: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ranking: {
+        _id: '2',
+        creator_id: user._id || '',
+        upvotes: 280,
+        downvotes: 20,
+        eloScore: 2100,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    }
+  ]);
+
+  // Sort courses by eloScore
+  const sortedCourses = [...courses].sort((a, b) => 
+    (b.ranking?.eloScore || 0) - (a.ranking?.eloScore || 0)
+  );
+
   const handleSave = async () => {
     // TODO: Implement save functionality
     setIsEditing(false);
+  };
+
+  const getDifficultyColor = (difficulty: Difficulty) => {
+    switch(difficulty) {
+      case 'Beginner':
+        return 'bg-green-500/20 text-green-500';
+      case 'Intermediate':
+        return 'bg-yellow-500/20 text-yellow-500';
+      case 'Advanced':
+        return 'bg-red-500/20 text-red-500';
+    }
+  };
+
+  const getCategoryColor = (category: Category) => {
+    switch(category) {
+      case 'Web3':
+        return 'bg-purple-500/20 text-purple-500';
+      case 'AI/ML':
+        return 'bg-blue-500/20 text-blue-500';
+      case 'Full Stack Development':
+        return 'bg-orange-500/20 text-orange-500';
+      case 'Marketing':
+        return 'bg-pink-500/20 text-pink-500';
+      case 'Designs':
+        return 'bg-teal-500/20 text-teal-500';
+    }
+  };
+
+  const getEloScoreColor = (eloScore: number) => {
+    if (eloScore >= 2000) return 'text-yellow-500';
+    if (eloScore >= 1800) return 'text-gray-400';
+    if (eloScore >= 1600) return 'text-amber-600';
+    return 'text-white/60';
   };
 
   return (
@@ -190,6 +276,76 @@ export default function ProfilePage() {
                     )}
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 border-white/20 shadow-lg bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/60">
+            <CardHeader className="flex flex-row justify-between items-center">
+              <CardTitle className="text-3xl font-bold text-white">My Courses</CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-sm">Sort by:</span>
+                <Badge variant="outline" className="text-white border-white/20">
+                  Ranking
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {sortedCourses.map((course) => (
+                  <div
+                    key={course._id}
+                    className="p-6 rounded-lg border border-white/10 hover:border-white/20 transition-colors"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-xl font-semibold text-white">{course.name}</h3>
+                      <Badge className={getDifficultyColor(course.difficulty)}>
+                        {course.difficulty}
+                      </Badge>
+                    </div>
+                    <p className="text-white/60 mb-4 line-clamp-2">{course.description}</p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {course.categories.map((category) => (
+                        <Badge key={category} className={getCategoryColor(category)}>
+                          {category}
+                        </Badge>
+                      ))}
+                    </div>
+                    
+                    {/* Ranking Information */}
+                    <div className="border-t border-white/10 pt-4 mt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <FaThumbsUp className="text-green-500" />
+                            <span className="text-white">{course.ranking?.upvotes || 0}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaThumbsDown className="text-red-500" />
+                            <span className="text-white">{course.ranking?.downvotes || 0}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <TbTrophy className={getEloScoreColor(course.ranking?.eloScore || 0)} />
+                          <span className={`font-semibold ${getEloScoreColor(course.ranking?.eloScore || 0)}`}>
+                            {course.ranking?.eloScore || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center mt-4">
+                      <span className="text-white/40 text-sm">
+                        Created {new Date(course.createdAt).toLocaleDateString()}
+                      </span>
+                      {!course.isOriginal && (
+                        <Badge variant="outline" className="text-white/60 border-white/20">
+                          Forked
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
