@@ -4,6 +4,7 @@ import { connectToDB } from "@/lib/mongoose";
 import Course from "@/lib/model/course.model";
 import CourseRanking from "@/lib/model/courseRanking.model";
 import { revalidatePath } from "next/cache";
+import mongoose from "mongoose";
 
 interface CreateCourseParams {
     courseId: string;
@@ -383,5 +384,119 @@ export async function getTopRatedCourses(limit: number = 10) {
         return rankings.map(ranking => ranking.course_id);
     } catch (error: any) {
         throw new Error(`Failed to fetch top rated courses: ${error.message}`);
+    }
+}
+
+// Get user's course statistics
+export async function getUserCourseStats(userId: string) {
+    try {
+        await connectToDB();
+
+        const stats = await Course.aggregate([
+            { $match: { creator_id: new mongoose.Types.ObjectId(userId) } },
+            {
+                $group: {
+                    _id: null,
+                    totalCourses: { $sum: 1 },
+                    originalCourses: { $sum: { $cond: ["$isOriginal", 1, 0] } },
+                    forkedCourses: { $sum: { $cond: ["$isOriginal", 0, 1] } },
+                    publicCourses: { $sum: { $cond: ["$isPublic", 1, 0] } },
+                    privateCourses: { $sum: { $cond: ["$isPublic", 0, 1] } },
+                    categoriesDistribution: { $addToSet: "$categories" },
+                    difficultyDistribution: { $addToSet: "$difficulty" }
+                }
+            }
+        ]);
+
+        // Get total upvotes and downvotes from course rankings
+        const rankings = await CourseRanking.aggregate([
+            {
+                $lookup: {
+                    from: 'courses',
+                    localField: 'course_id',
+                    foreignField: '_id',
+                    as: 'course'
+                }
+            },
+            {
+                $match: {
+                    'course.creator_id': new mongoose.Types.ObjectId(userId)
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalUpvotes: { $sum: "$upvotes" },
+                    totalDownvotes: { $sum: "$downvotes" },
+                    averageEloScore: { $avg: "$eloScore" }
+                }
+            }
+        ]);
+
+        return {
+            ...(stats[0] || {
+                totalCourses: 0,
+                originalCourses: 0,
+                forkedCourses: 0,
+                publicCourses: 0,
+                privateCourses: 0,
+                categoriesDistribution: [],
+                difficultyDistribution: []
+            }),
+            ...(rankings[0] || {
+                totalUpvotes: 0,
+                totalDownvotes: 0,
+                averageEloScore: 0
+            })
+        };
+    } catch (error: any) {
+        throw new Error(`Failed to fetch user course statistics: ${error.message}`);
+    }
+}
+
+// Get user's top performing courses
+export async function getUserTopCourses(userId: string, limit: number = 5) {
+    try {
+        await connectToDB();
+
+        const topCourses = await Course.aggregate([
+            { $match: { creator_id: new mongoose.Types.ObjectId(userId) } },
+            {
+                $lookup: {
+                    from: 'courserankings',
+                    localField: '_id',
+                    foreignField: 'course_id',
+                    as: 'ranking'
+                }
+            },
+            { $unwind: '$ranking' },
+            { $sort: { 'ranking.eloScore': -1 } },
+            { $limit: limit }
+        ]);
+
+        // Populate creator_id since aggregate doesn't support populate
+        await Course.populate(topCourses, { path: 'creator_id' });
+
+        return topCourses.map(serializeCourse);
+    } catch (error: any) {
+        throw new Error(`Failed to fetch user's top courses: ${error.message}`);
+    }
+}
+
+// Get user's recent course activity
+export async function getUserRecentActivity(userId: string, limit: number = 10) {
+    try {
+        await connectToDB();
+
+        const recentActivity = await Course.find({ creator_id: userId })
+            .populate('creator_id')
+            .populate('ranking')
+            .sort({ updatedAt: -1 })
+            .limit(limit)
+            .lean();
+
+        return recentActivity.map(serializeCourse);
+    } catch (error: any) {
+        throw new Error(`Failed to fetch user's recent activity: ${error.message}`);
     }
 }

@@ -13,7 +13,7 @@ import Image from 'next/image';
 import { Navbar } from '@/components/ui/Navbar';
 import { useMetaMaskStore } from '@/lib/stores/metamask-store';
 import { updateUser, getUser, createUser, checkUserProfileComplete } from '@/lib/actions/user.actions';
-import { getUserCourses } from '@/lib/actions/course.actions';
+import { getUserCourses, getUserCourseStats, getUserTopCourses, getUserRecentActivity } from '@/lib/actions/course.actions';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -29,11 +29,15 @@ export default function ProfilePage() {
   const [isNewUser, setIsNewUser] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [courseStats, setCourseStats] = useState<any>(null);
+  const [topCourses, setTopCourses] = useState<CourseWithRanking[]>([]);
+  const [recentActivity, setRecentActivity] = useState<CourseWithRanking[]>([]);
+  const [activeTab, setActiveTab] = useState<'all' | 'top' | 'recent'>('all');
 
   useEffect(() => {
     const fetchData = async () => {
       if (!metaMaskIsConnected || !walletAddress) {
-        router.push('/'); // Redirect to home if not connected
+        router.push('/');
         return;
       }
       
@@ -54,35 +58,55 @@ export default function ProfilePage() {
           setIsEditing(true);
         }
 
-        // Fetch user's courses and ensure type safety
-        const userCourses = await getUserCourses(walletAddress);
-        const validCourses = (userCourses || [])
+        // Fetch course-related data
+        const [userCourses, stats, topPerforming, recent] = await Promise.all([
+          getUserCourses(walletAddress),
+          getUserCourseStats(walletAddress),
+          getUserTopCourses(walletAddress, 5),
+          getUserRecentActivity(walletAddress, 10)
+        ]);
+
+        // Map the serialized courses to CourseWithRanking type
+        const mapToCourseWithRanking = (course: any): CourseWithRanking => ({
+          _id: course._id,
+          name: course.name,
+          description: course.description || '',
+          background: course.background,
+          creator_id: course.creator_id,
+          isPublic: course.isPublic,
+          categories: course.categories,
+          difficulty: course.difficulty,
+          isOriginal: course.isOriginal,
+          forkedFrom: course.forkedFrom,
+          createdAt: new Date(course.createdAt),
+          updatedAt: new Date(course.updatedAt),
+          ranking: course.ranking ? {
+            _id: course.ranking._id,
+            creator_id: course.ranking.creator_id,
+            upvotes: course.ranking.upvotes,
+            downvotes: course.ranking.downvotes,
+            eloScore: course.ranking.eloScore,
+            createdAt: new Date(course.ranking.createdAt),
+            updatedAt: new Date(course.ranking.updatedAt)
+          } : undefined
+        });
+
+        const validUserCourses = (userCourses || [])
           .filter((course): course is NonNullable<typeof course> => course !== null)
-          .map(course => ({
-            _id: course._id,
-            name: course.name,
-            description: course.description || '',
-            background: course.background,
-            creator_id: course.creator_id,
-            isPublic: course.isPublic,
-            categories: course.categories,
-            difficulty: course.difficulty,
-            isOriginal: course.isOriginal,
-            forkedFrom: course.forkedFrom,
-            createdAt: new Date(course.createdAt),
-            updatedAt: new Date(course.updatedAt),
-            ranking: course.ranking ? {
-              _id: course.ranking._id,
-              creator_id: course.ranking.creator_id,
-              upvotes: course.ranking.upvotes,
-              downvotes: course.ranking.downvotes,
-              eloScore: course.ranking.eloScore,
-              createdAt: new Date(course.ranking.createdAt),
-              updatedAt: new Date(course.ranking.updatedAt)
-            } : undefined
-          })) as CourseWithRanking[];
+          .map(mapToCourseWithRanking);
         
-        setCourses(validCourses);
+        const validTopCourses = (topPerforming || [])
+          .filter((course): course is NonNullable<typeof course> => course !== null)
+          .map(mapToCourseWithRanking);
+        
+        const validRecentCourses = (recent || [])
+          .filter((course): course is NonNullable<typeof course> => course !== null)
+          .map(mapToCourseWithRanking);
+
+        setCourses(validUserCourses);
+        setCourseStats(stats);
+        setTopCourses(validTopCourses);
+        setRecentActivity(validRecentCourses);
       } catch (error) {
         // If user doesn't exist, create a new one
         if ((error as Error).message.includes('User not found')) {
@@ -209,6 +233,151 @@ export default function ProfilePage() {
   };
 
   const isProfileIncomplete = !user.name || !user.email || !user.bio;
+
+  const renderCoursesSection = () => (
+    <Card className="border-2 border-white/20 shadow-lg bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/60">
+      <CardHeader className="space-y-4">
+        <div className="flex flex-row justify-between items-center">
+          <CardTitle className="text-3xl font-bold text-white">My Courses</CardTitle>
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              <Button
+                variant={activeTab === 'all' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('all')}
+                className="text-sm"
+              >
+                All Courses
+              </Button>
+              <Button
+                variant={activeTab === 'top' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('top')}
+                className="text-sm"
+              >
+                Top Performing
+              </Button>
+              <Button
+                variant={activeTab === 'recent' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('recent')}
+                className="text-sm"
+              >
+                Recent Activity
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {courseStats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+            <div className="bg-white/5 rounded-lg p-4">
+              <h4 className="text-white/60 text-sm">Total Courses</h4>
+              <p className="text-2xl font-bold text-white">{courseStats.totalCourses}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-4">
+              <h4 className="text-white/60 text-sm">Total Upvotes</h4>
+              <p className="text-2xl font-bold text-green-500">{courseStats.totalUpvotes}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-4">
+              <h4 className="text-white/60 text-sm">Average Score</h4>
+              <p className="text-2xl font-bold text-blue-500">{Math.round(courseStats.averageEloScore)}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-4">
+              <h4 className="text-white/60 text-sm">Original/Forked</h4>
+              <p className="text-2xl font-bold text-white">
+                {courseStats.originalCourses}/{courseStats.forkedCourses}
+              </p>
+            </div>
+          </div>
+        )}
+      </CardHeader>
+
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {(activeTab === 'all' ? courses :
+            activeTab === 'top' ? topCourses :
+            recentActivity
+          ).map((course) => (
+            <div
+              key={course._id}
+              className="group relative rounded-lg border border-white/10 hover:border-white/20 transition-all overflow-hidden"
+            >
+              {/* Course Background Image */}
+              <div className="relative h-48 w-full overflow-hidden">
+                <Image
+                  src={course.background || '/default-course-bg.jpg'}
+                  alt={course.name}
+                  fill
+                  className="object-cover transition-transform group-hover:scale-105"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20" />
+                <Badge 
+                  className={`${getDifficultyColor(course.difficulty)} absolute top-4 right-4`}
+                >
+                  {course.difficulty}
+                </Badge>
+              </div>
+
+              {/* Course Content */}
+              <div className="p-6">
+                <h3 className="text-xl font-semibold text-white mb-2">{course.name}</h3>
+                <p className="text-white/60 mb-4 line-clamp-2">{course.description}</p>
+                
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {course.categories.map((category) => (
+                    <Badge key={category} className={getCategoryColor(category)}>
+                      {category}
+                    </Badge>
+                  ))}
+                </div>
+
+                {/* Ranking Information */}
+                <div className="border-t border-white/10 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <FaThumbsUp className="text-green-500" />
+                        <span className="text-white">{course.ranking?.upvotes || 0}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FaThumbsDown className="text-red-500" />
+                        <span className="text-white">{course.ranking?.downvotes || 0}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <TbTrophy className={getEloScoreColor(course.ranking?.eloScore || 0)} />
+                      <span className={`font-semibold ${getEloScoreColor(course.ranking?.eloScore || 0)}`}>
+                        {course.ranking?.eloScore || 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center mt-4">
+                  <span className="text-white/40 text-sm">
+                    Created {new Date(course.createdAt).toLocaleDateString()}
+                  </span>
+                  {!course.isOriginal && (
+                    <Badge variant="outline" className="text-white/60 border-white/20">
+                      Forked
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {(activeTab === 'all' ? courses :
+          activeTab === 'top' ? topCourses :
+          recentActivity
+        ).length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-white/60">No courses found</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   if (!metaMaskIsConnected) {
     return (
@@ -420,91 +589,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-2 border-white/20 shadow-lg bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/60">
-            <CardHeader className="flex flex-row justify-between items-center">
-              <CardTitle className="text-3xl font-bold text-white">My Courses</CardTitle>
-              <div className="flex items-center gap-2">
-                <span className="text-white/60 text-sm">Sort by:</span>
-                <Badge variant="outline" className="text-white border-white/20">
-                  Ranking
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {sortedCourses.map((course) => (
-                  <div
-                    key={course._id}
-                    className="group relative rounded-lg border border-white/10 hover:border-white/20 transition-all overflow-hidden"
-                  >
-                    {/* Course Background Image */}
-                    <div className="relative h-48 w-full overflow-hidden">
-                      <Image
-                        src={course.background || '/default-course-bg.jpg'}
-                        alt={course.name}
-                        fill
-                        className="object-cover transition-transform group-hover:scale-105"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20" />
-                      <Badge 
-                        className={`${getDifficultyColor(course.difficulty)} absolute top-4 right-4`}
-                      >
-                        {course.difficulty}
-                      </Badge>
-                    </div>
-
-                    {/* Course Content */}
-                    <div className="p-6">
-                      <h3 className="text-xl font-semibold text-white mb-2">{course.name}</h3>
-                      <p className="text-white/60 mb-4 line-clamp-2">{course.description}</p>
-                      
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {course.categories.map((category) => (
-                          <Badge key={category} className={getCategoryColor(category)}>
-                            {category}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      {/* Ranking Information */}
-                      <div className="border-t border-white/10 pt-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <FaThumbsUp className="text-green-500" />
-                              <span className="text-white">{course.ranking?.upvotes || 0}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <FaThumbsDown className="text-red-500" />
-                              <span className="text-white">{course.ranking?.downvotes || 0}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <TbTrophy className={getEloScoreColor(course.ranking?.eloScore || 0)} />
-                            <span className={`font-semibold ${getEloScoreColor(course.ranking?.eloScore || 0)}`}>
-                              {course.ranking?.eloScore || 0}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center mt-4">
-                        <span className="text-white/40 text-sm">
-                          Created {new Date(course.createdAt).toLocaleDateString()}
-                        </span>
-                        {!course.isOriginal && (
-                          <Badge variant="outline" className="text-white/60 border-white/20">
-                            Forked
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {renderCoursesSection()}
         </div>
       </div>
     </div>
