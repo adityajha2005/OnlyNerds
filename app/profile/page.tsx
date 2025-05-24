@@ -21,7 +21,7 @@ import { AlertTriangle } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { metaMaskIsConnected, walletAddress } = useMetaMaskStore();
+  const { metaMaskIsConnected, walletAddress, initializeMetaMask } = useMetaMaskStore();
   const [isEditing, setIsEditing] = useState(false);
   const [user, setUser] = useState<Partial<User>>({});
   const [courses, setCourses] = useState<CourseWithRanking[]>([]);
@@ -33,6 +33,11 @@ export default function ProfilePage() {
   const [topCourses, setTopCourses] = useState<CourseWithRanking[]>([]);
   const [recentActivity, setRecentActivity] = useState<CourseWithRanking[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'top' | 'recent'>('all');
+
+  // Initialize MetaMask connection
+  useEffect(() => {
+    initializeMetaMask();
+  }, [initializeMetaMask]);
 
   useEffect(() => {
     const fetchData = async () => {

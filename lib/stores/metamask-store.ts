@@ -20,6 +20,7 @@ interface MetaMaskStore {
   walletAddress: string;
   connectMetaMask: () => Promise<void>;
   disconnectMetaMask: () => void;
+  initializeMetaMask: () => Promise<void>;
 }
 
 declare global {
@@ -32,6 +33,56 @@ export const useMetaMaskStore = create<MetaMaskStore>((set) => ({
   metaMaskIsConnected: false,
   evmProvider: null,
   walletAddress: "",
+
+  initializeMetaMask: async () => {
+    if (typeof window === 'undefined' || !window.ethereum) return;
+
+    try {
+      // Check if already connected
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      if (accounts.length > 0) {
+        const provider = new BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+
+        set(() => ({
+          evmProvider: provider,
+          metaMaskIsConnected: true,
+          walletAddress: address,
+        }));
+      }
+
+      // Setup event listeners for account and chain changes
+      window.ethereum.on('accountsChanged', async (accounts: string[]) => {
+        if (accounts.length === 0) {
+          set(() => ({
+            metaMaskIsConnected: false,
+            evmProvider: null,
+            walletAddress: "",
+          }));
+        } else {
+          const provider = new BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const address = await signer.getAddress();
+
+          set(() => ({
+            evmProvider: provider,
+            metaMaskIsConnected: true,
+            walletAddress: address,
+          }));
+        }
+      });
+
+      window.ethereum.on('chainChanged', () => {
+        // Reload the page when chain changes
+        window.location.reload();
+      });
+
+    } catch (error) {
+      console.error("Error initializing MetaMask:", error);
+    }
+  },
+
   connectMetaMask: async () => {
     if (!window.ethereum) {
       alert("MetaMask is not installed. Please install MetaMask and try again.");
@@ -49,6 +100,9 @@ export const useMetaMaskStore = create<MetaMaskStore>((set) => ({
         });
       }
 
+      // Request account access
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
       console.log("Signer retrieved:", signer);
@@ -68,6 +122,7 @@ export const useMetaMaskStore = create<MetaMaskStore>((set) => ({
       }
     }
   },
+
   disconnectMetaMask: () => {
     set(() => ({
       metaMaskIsConnected: false,
