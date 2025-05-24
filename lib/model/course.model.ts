@@ -47,6 +47,6 @@ courseSchema.index({ creator_id: 1 });
 courseSchema.index({ isOriginal: 1, forkedFrom: 1 }); 
 courseSchema.index({ isPublic: 1, categories: 1 }); 
 
-const Course = mongoose.model("Course", courseSchema);
+const Course = mongoose.models.Course || mongoose.model("Course", courseSchema);
 
 export default Course;

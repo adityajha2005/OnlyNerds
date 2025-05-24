@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema({
             type: String,
             validate: {
                 validator: function(v: string) {
-                    return !v || v.startsWith('https://www.github.com/');
+                    return !v || v.startsWith('https://github.com/');
                 },
                 message: 'Invalid GitHub URL'
             }
@@ -52,7 +52,7 @@ const userSchema = new mongoose.Schema({
             type: String,
             validate: {
                 validator: function(v: string) {
-                    return !v || v.startsWith('https://www.x.com/');
+                    return !v || v.startsWith('https://x.com/');
                 },
                 message: 'Invalid X/Twitter URL'
             }
@@ -61,7 +61,7 @@ const userSchema = new mongoose.Schema({
             type: String,
             validate: {
                 validator: function(v: string) {
-                    return !v || v.startsWith('https:/www./linkedin.com/in/');
+                    return !v || v.startsWith('https://www.linkedin.com/in/');
                 },
                 message: 'Invalid LinkedIn URL'
             }

@@ -21,9 +21,9 @@ import { FaThumbsUp, FaThumbsDown, FaMagnifyingGlass, FaPlus, FaTrash, FaEye, Fa
 import { TbTrophy } from 'react-icons/tb';
 import { Edit3, TimerResetIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Navbar } from '@/components/ui/Navbar';
 import { getUserCourses, deleteCourse, updateCourse, createCourse, getCourseByCreatorId } from '@/lib/actions/course.actions';
 import { useRouter } from 'next/navigation';
+import { Navbar } from '@/components/ui/Navbar';
 
 type SortOption = 'popular' | 'newest' | 'ranking';
 type ViewMode = 'all' | 'public' | 'private' | 'original' | 'forked';
@@ -32,10 +32,20 @@ interface CreateCourseModalProps {
   children: React.ReactNode;
   onCourseCreated?: () => void;
   currentUserId: string;
+  editingCourse?: Course; // Add this prop for editing
+  open?: boolean; // Add this for external control
+  onOpenChange?: (open: boolean) => void; // Add this for external control
 }
 
-function CreateCourseModal({ children, onCourseCreated, currentUserId }: CreateCourseModalProps) {
-  const [open, setOpen] = useState(false);
+function CreateCourseModal({ 
+  children, 
+  onCourseCreated, 
+  currentUserId, 
+  editingCourse,
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange
+}: CreateCourseModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -48,6 +58,26 @@ function CreateCourseModal({ children, onCourseCreated, currentUserId }: CreateC
 
   const categories: Category[] = ['Web3', 'AI/ML', 'Full Stack Development', 'Marketing', 'Designs'];
   const difficulties: Difficulty[] = ['Beginner', 'Intermediate', 'Advanced'];
+
+  // Use external open state if provided, otherwise use internal state
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = externalOnOpenChange || setInternalOpen;
+
+  // Populate form data when editing course changes
+  useEffect(() => {
+    if (editingCourse) {
+      setFormData({
+        name: editingCourse.name,
+        description: editingCourse.description || '',
+        background: editingCourse.background || '',
+        difficulty: editingCourse.difficulty,
+        isPublic: editingCourse.isPublic,
+        selectedCategories: editingCourse.categories
+      });
+    } else {
+      resetForm();
+    }
+  }, [editingCourse]);
 
   const generateCourseId = () => {
     return `course_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -84,29 +114,47 @@ function CreateCourseModal({ children, onCourseCreated, currentUserId }: CreateC
     try {
       setLoading(true);
       
-      const courseId = generateCourseId();
-      const result = await createCourse({
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        background: formData.background.trim() || undefined,
-        creator_id: currentUserId,
-        isPublic: formData.isPublic,
-        categories: formData.selectedCategories,
-        difficulty: formData.difficulty as Difficulty,
-        isOriginal: true
-      });
+      let result;
+      if (editingCourse) {
+        // Update existing course
+        result = await updateCourse({
+          courseId: editingCourse._id,
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          background: formData.background.trim() || undefined,
+          creator_id: currentUserId,
+          isPublic: formData.isPublic,
+          categories: formData.selectedCategories,
+          difficulty: formData.difficulty as Difficulty,
+          isOriginal: editingCourse.isOriginal,
+          forkedFrom: editingCourse.forkedFrom
+        });
+      } else {
+        // Create new course
+        const courseId = generateCourseId();
+        result = await createCourse({
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          background: formData.background.trim() || undefined,
+          creator_id: currentUserId,
+          isPublic: formData.isPublic,
+          categories: formData.selectedCategories,
+          difficulty: formData.difficulty as Difficulty,
+          isOriginal: true
+        });
+      }
 
       if (result.success) {
         setOpen(false);
         resetForm();
         onCourseCreated?.();
-        alert('Course created successfully!');
+        alert(`Course ${editingCourse ? 'updated' : 'created'} successfully!`);
       } else {
-        alert(result.message || 'Failed to create course');
+        alert(result.message || `Failed to ${editingCourse ? 'update' : 'create'} course`);
       }
     } catch (error) {
-      console.error('Failed to create course:', error);
-      alert('Failed to create course');
+      console.error(`Failed to ${editingCourse ? 'update' : 'create'} course:`, error);
+      alert(`Failed to ${editingCourse ? 'update' : 'create'} course`);
     } finally {
       setLoading(false);
     }
@@ -134,7 +182,9 @@ function CreateCourseModal({ children, onCourseCreated, currentUserId }: CreateC
       </DialogTrigger>
       <DialogContent className="bg-black border-white/20 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Create New Course</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">
+            {editingCourse ? 'Edit Course' : 'Create New Course'}
+          </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -269,7 +319,10 @@ function CreateCourseModal({ children, onCourseCreated, currentUserId }: CreateC
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               disabled={loading}
             >
-              {loading ? 'Creating...' : 'Create Course'}
+              {loading 
+                ? (editingCourse ? 'Updating...' : 'Creating...') 
+                : (editingCourse ? 'Update Course' : 'Create Course')
+              }
             </Button>
           </div>
         </form>
@@ -287,6 +340,10 @@ export default function MyCoursesPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'all'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [viewMode, setViewMode] = useState<ViewMode>('all');
+
+  // State for edit modal
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
   // Get wallet address from localStorage
   const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -320,6 +377,20 @@ export default function MyCoursesPage() {
       setLoading(false);
     }
   };
+
+  const handleEditCourse = (course: Course) => {
+    setEditingCourse(course);
+    setEditModalOpen(true);
+  };
+
+  const handleEditModalClose = (open: boolean) => {
+    setEditModalOpen(open);
+    if (!open) {
+      setEditingCourse(null);
+    }
+  };
+
+  // ...existing code for filtering, sorting, etc...
 
   const filteredAndSortedCourses = courses
     .filter(course => {
@@ -462,8 +533,8 @@ export default function MyCoursesPage() {
 
   return (
     <div className="min-h-screen bg-black">
+      <Navbar/>
       <div className="container mx-auto py-8 px-4">
-        <Navbar />
         <div className="max-w-7xl mx-auto space-y-8 mt-[50px]">
           {/* Header and Actions */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -596,10 +667,16 @@ export default function MyCoursesPage() {
               <div
                 key={course._id}
                 onClick={(e) => {
+                  // Check if click target is one of the action buttons
+                  if ((e.target as HTMLElement).closest('button')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                  }
                   e.preventDefault();
-                  router.push(`/${course._id}`);
+                  router.push(`/my-courses/${course._id}`);
                 }}
-                className="group relative rounded-lg border border-white/10 hover:border-white/20 transition-all overflow-hidden"
+                className="group relative rounded-lg border border-white/10 hover:border-white/20 transition-all overflow-hidden cursor-pointer"
               >
                 {/* Course Background Image */}
                 <div className="relative h-48 w-full overflow-hidden">
@@ -632,7 +709,11 @@ export default function MyCoursesPage() {
                       size="sm"
                       variant="outline"
                       className="bg-black/50 border-white/20 text-white hover:bg-white/10"
-                      onClick={() => handleToggleVisibility(course._id, course.isPublic)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleToggleVisibility(course._id, course.isPublic);
+                      }}
                     >
                       {course.isPublic ? <FaEyeSlash /> : <FaEye />}
                     </Button>
@@ -640,6 +721,11 @@ export default function MyCoursesPage() {
                       size="sm"
                       variant="outline"
                       className="bg-black/50 border-white/20 text-white hover:bg-white/10"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleEditCourse(course);
+                      }}
                     >
                       <Edit3 />
                     </Button>
@@ -647,7 +733,11 @@ export default function MyCoursesPage() {
                       size="sm"
                       variant="outline"
                       className="bg-black/50 border-red-500/20 text-red-500 hover:bg-red-500/10"
-                      onClick={() => handleDeleteCourse(course._id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDeleteCourse(course._id);
+                      }}
                     >
                       <FaTrash />
                     </Button>
@@ -724,6 +814,17 @@ export default function MyCoursesPage() {
           )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      <CreateCourseModal
+        currentUserId={currentUserId}
+        onCourseCreated={fetchUserCourses}
+        editingCourse={editingCourse || undefined}
+        open={editModalOpen}
+        onOpenChange={handleEditModalClose}
+      >
+        <div></div>
+      </CreateCourseModal>
     </div>
   );
 }

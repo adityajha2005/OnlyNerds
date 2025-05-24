@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { FaGithub, FaXTwitter, FaLinkedin, FaThumbsUp, FaThumbsDown } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
 import Image from 'next/image';
-import { Navbar } from '@/components/ui/Navbar';
 import { useMetaMaskStore } from '@/lib/stores/metamask-store';
 import { updateUser, getUser, createUser, checkUserProfileComplete } from '@/lib/actions/user.actions';
 import { getUserCourses, getUserCourseStats, getUserTopCourses, getUserRecentActivity } from '@/lib/actions/course.actions';
@@ -18,6 +17,7 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import { Navbar } from '@/components/ui/Navbar';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -433,9 +433,9 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black">
+        <Navbar/>
       <div className="container mx-auto py-8 px-4">
-        <Navbar />
-        <div className="max-w-4xl mx-auto space-y-8">
+]        <div className="max-w-4xl mx-auto space-y-8">
           {isProfileIncomplete && !isEditing && (
             <Alert variant="destructive" className="mb-6 bg-red-500/10 border-red-500/20 text-red-500">
               <AlertTriangle className="h-4 w-4" />

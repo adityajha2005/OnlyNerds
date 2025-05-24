@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
 export const metadata: Metadata = {
-  title: 'OnlyNerds',
-  description: 'Only Nerds is for builders, creators, and autodidacts who learn by doing.',
+  title: 'Onlynerds',
+  description: 'The decentralized AI-powered learning platform for real ones.',
 }
 
 export default function RootLayout({

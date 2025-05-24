@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react"
 import { HeroSplineBackground } from "./HeroSplineBackground"
 import { ScreenshotSection } from "./ScreenshotSection"
 import { HeroContent } from "./HeroContent"
-import { Navbar } from "./Navbar"
 import CoursesPage from "./courses-home"
 
 const HeroSection = () => {
@@ -35,8 +34,6 @@ const HeroSection = () => {
 
   return (
     <div className="relative">
-      <Navbar />
-
       <div className="relative min-h-screen">
         <div className="absolute inset-0 z-0 pointer-events-auto">
           <HeroSplineBackground />

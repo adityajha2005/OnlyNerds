@@ -29,7 +29,6 @@ import {
 import { TbTrophy } from 'react-icons/tb';
 import { Mic, MicOff } from 'lucide-react';
 import Image from 'next/image';
-import { Navbar } from '@/components/ui/Navbar';
 import { 
   getCourseById, 
   updateCourseRanking, 
@@ -41,6 +40,7 @@ import {
   updateModule, 
   deleteModule 
 } from '@/lib/actions/module.actions';
+import { Navbar } from '@/components/ui/Navbar';
 
 interface ModuleFormData {
   name: string;
@@ -309,33 +309,44 @@ export default function CourseDetailPage() {
     }
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (courseId) {
-      fetchCourseData();
-      fetchModules();
+        const loadData = async () => {
+        setLoading(true);
+        try {
+            await Promise.all([
+            fetchCourseData(),
+            fetchModules()
+            ]);
+        } catch (error) {
+            console.error('Failed to load course data:', error);
+        } finally {
+            setLoading(false);
+        }
+        };
+        
+        loadData();
     }
-  }, [courseId]);
+    }, [courseId]);
 
-  const fetchCourseData = async () => {
+    // Update these functions to not manage loading state individually
+    const fetchCourseData = async () => {
     try {
-      const courseData = await getCourseById(courseId);
-      setCourse(courseData);
+        const courseData = await getCourseById(courseId);
+        setCourse(courseData);
     } catch (error) {
-      console.error('Failed to fetch course:', error);
+        console.error('Failed to fetch course:', error);
     }
-  };
+    };
 
-  const fetchModules = async () => {
+    const fetchModules = async () => {
     try {
-      setLoading(true);
-      const moduleData = await getModulesByCourseId(courseId);
-      setModules(moduleData.sort((a, b) => a.index - b.index));
+        const moduleData = await getModulesByCourseId(courseId);
+        setModules(moduleData.sort((a, b) => a.index - b.index));
     } catch (error) {
-      console.error('Failed to fetch modules:', error);
-    } finally {
-      setLoading(false);
+        console.error('Failed to fetch modules:', error);
     }
-  };
+    };
 
   const handleVote = async (isUpvote: boolean) => {
     try {
@@ -452,9 +463,9 @@ export default function CourseDetailPage() {
 
   return (
     <div className="min-h-screen bg-black">
-      <Navbar />
-      <div className="container mx-auto py-8 px-4 mt-[80px]">
-        <div className="max-w-7xl mx-auto space-y-8">
+      <Navbar/>
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-7xl mx-auto space-y-8 mt-[50px]">
           {/* Course Header */}
           <div className="relative">
             <div className="relative h-64 w-full overflow-hidden rounded-lg">

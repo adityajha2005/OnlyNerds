@@ -17,7 +17,6 @@ import {
 import { FaThumbsUp, FaThumbsDown, FaMagnifyingGlass } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
 import Image from 'next/image';
-import { Navbar } from '@/components/ui/Navbar';
 
 type SortOption = 'popular' | 'newest' | 'ranking';
 
@@ -157,7 +156,6 @@ export default function CoursesPage() {
   return (
     <div className="min-h-screen bg-black">
       <div className="container mx-auto py-8 px-4">
-        <Navbar />
         <div className="max-w-7xl mx-auto space-y-8 mt-[50px]">
           {/* Courses Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

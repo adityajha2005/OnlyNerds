@@ -156,8 +156,8 @@ export default function CoursesPage() {
 
   return (
     <div className="min-h-screen bg-black">
+        <Navbar/>
       <div className="container mx-auto py-8 px-4">
-        <Navbar />
         <div className="max-w-7xl mx-auto space-y-8 mt-[50px]">
           {/* Header and Search */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
