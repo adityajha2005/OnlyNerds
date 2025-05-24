@@ -128,8 +128,8 @@ export default function ProfilePage() {
     if (user.socials?.x && !user.socials.x.startsWith('https://x.com/')) {
       newErrors.x = 'Please enter a valid X/Twitter URL';
     }
-    if (user.socials?.linkedin) {
-      newErrors.linkedin = 'Please enter a valid LinkedIn URL';
+    if (user.socials?.linkedin && !user.socials.linkedin.startsWith('https://www.linkedin.com/')) {
+      newErrors.linkedin = 'Please enter a valid LinkedIn URL starting with https://www.linkedin.com/';
     }
 
     setErrors(newErrors);
