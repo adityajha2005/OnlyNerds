@@ -63,9 +63,9 @@ const HeroSection = () => {
       <div className="bg-black relative z-10" style={{ marginTop: "-10vh" }}>
         <ScreenshotSection screenshotRef={screenshotRef} />
         <div className="container mx-auto px-4 py-16 text-white">
-          <h2 className="text-4xl font-bold text-center mb-8">Other Content Below</h2>
+          <h2 className="text-4xl font-bold text-center mb-8">Start Your Learning Journey</h2>
           <p className="text-center max-w-xl mx-auto opacity-80">
-            This is where additional sections of your landing page would go.
+            Explore our curated courses, fork them to create your own versions, and earn NFTs while mastering new skills.
           </p>
         </div>
       </div>

@@ -15,9 +15,9 @@ export function HeroContent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
         >
-          {"We're Building"}
+          {"Learn & Earn"}
           <br />
-          Cool Experiences
+          Web3 Education
         </motion.h1>
         <motion.div 
           className="funnel-font text-sm text-gray-300 opacity-90 mt-4"
@@ -25,7 +25,7 @@ export function HeroContent() {
           animate={{ opacity: 0.9 }}
           transition={{ duration: 0.8, delay: 0.4 }}
         >
-          AI \ WEB3 \ UI \ 3D \ MOTION
+          LEARN \ CREATE \ FORK \ EARN \ GROW
         </motion.div>
       </motion.div>
 
@@ -41,7 +41,7 @@ export function HeroContent() {
           animate={{ opacity: 0.8, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
         >
-          Crafting Awesome Stories and Killer Designs to Make Brand Stand Out
+          The first decentralized learning platform where you can learn, create, fork courses, and earn NFTs
         </motion.p>
         <motion.div 
           className="flex pointer-events-auto flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-3"
@@ -54,7 +54,7 @@ export function HeroContent() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Contact Us
+            Explore Courses
           </motion.button>
           <motion.button 
             className="funnel-font pointer-events-auto bg-white text-black font-semibold py-2.5 sm:py-3.5 px-6 sm:px-8 rounded-2xl transition duration-300 hover:scale-105 flex items-center justify-center w-full sm:w-auto"
@@ -72,7 +72,7 @@ export function HeroContent() {
                 fill="currentColor"
               />
             </svg>
-            Get Started
+            Start Learning
           </motion.button>
         </motion.div>
       </motion.div>

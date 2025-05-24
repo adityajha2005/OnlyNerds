@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import { useState } from "react";
+import { useMetaMaskStore } from "@/lib/stores/metamask-store";
 
 const routes = [
   {
@@ -55,9 +56,7 @@ const routes = [
 export function Navbar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // This would come from your wallet connection logic
-  const isWalletConnected = false; // Replace with actual wallet connection state
-  const walletAddress = ""; // Replace with actual wallet address
+  const { metaMaskIsConnected, walletAddress, connectMetaMask, disconnectMetaMask } = useMetaMaskStore();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-20 border-b border-white/10 bg-black/20 backdrop-blur-xl">
@@ -112,14 +111,15 @@ export function Navbar() {
             ))}
 
             {/* Desktop Wallet Connection */}
-            {!isWalletConnected ? (
+            {!metaMaskIsConnected ? (
               <Button
                 size="sm"
                 variant="outline"
                 className="gap-x-2 border-primary text-primary hover:bg-primary/10 funnel-font"
+                onClick={connectMetaMask}
               >
                 <Wallet className="w-4 h-4" />
-                Connect Wallet
+                Connect MetaMask
               </Button>
             ) : (
               <DropdownMenu>
@@ -140,7 +140,7 @@ export function Navbar() {
                       Profile
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-600">
+                  <DropdownMenuItem className="text-red-600" onClick={disconnectMetaMask}>
                     <div className="flex items-center gap-x-2">
                       <LogOut className="w-4 h-4" />
                       Disconnect
@@ -181,14 +181,15 @@ export function Navbar() {
               ))}
 
               {/* Mobile Wallet Connection */}
-              {!isWalletConnected ? (
+              {!metaMaskIsConnected ? (
                 <Button
                   size="sm"
                   variant="outline"
                   className="gap-x-2 border-primary text-primary hover:bg-primary/10 funnel-font mt-2"
+                  onClick={connectMetaMask}
                 >
                   <Wallet className="w-4 h-4" />
-                  Connect Wallet
+                  Connect MetaMask
                 </Button>
               ) : (
                 <div className="mt-2">
@@ -203,7 +204,7 @@ export function Navbar() {
                   <button
                     className="text-sm funnel-font flex items-center gap-x-2 py-2 px-3 rounded-md transition-colors hover:bg-red-500/10 text-red-500 w-full mt-2"
                     onClick={() => {
-                      // Handle disconnect
+                      disconnectMetaMask();
                       setIsMobileMenuOpen(false);
                     }}
                   >
