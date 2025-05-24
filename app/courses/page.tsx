@@ -14,112 +14,102 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FaThumbsUp, FaThumbsDown, FaMagnifyingGlass } from 'react-icons/fa6';
+import { FaThumbsUp, FaThumbsDown, FaMagnifyingGlass, FaSpinner } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { getCourses } from '@/lib/actions/course.actions';
 import { Navbar } from '@/components/ui/Navbar';
 
-type SortOption = 'popular' | 'newest' | 'ranking';
+type SortOption = 'createdAt' | 'eloScore' | 'popular';
+
+interface CoursesResponse {
+  courses: CourseWithRanking[];
+  totalPages: number;
+  currentPage: number;
+  totalCourses: number;
+}
 
 export default function CoursesPage() {
-  // Mock courses data - replace with API call
-  const [courses] = useState<CourseWithRanking[]>([
-    {
-      _id: '1',
-      name: 'Introduction to Web3',
-      description: 'Learn the basics of Web3 development and blockchain technology. Build your first smart contract and decentralized application.',
-      background: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=2832&auto=format&fit=crop',
-      creator_id: '1',
-      isPublic: true,
-      categories: ['Web3'],
-      difficulty: 'Beginner',
-      isOriginal: true,
-      createdAt: new Date('2024-03-20'),
-      updatedAt: new Date(),
-      ranking: {
-        _id: '1',
-        creator_id: '1',
-        upvotes: 150,
-        downvotes: 10,
-        eloScore: 1800,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    },
-    {
-      _id: '2',
-      name: 'Advanced AI/ML Concepts',
-      description: 'Deep dive into AI and Machine Learning. Learn about neural networks, deep learning, and practical applications.',
-      background: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=2832&auto=format&fit=crop',
-      creator_id: '2',
-      isPublic: true,
-      categories: ['AI/ML'],
-      difficulty: 'Advanced',
-      isOriginal: true,
-      createdAt: new Date('2024-03-15'),
-      updatedAt: new Date(),
-      ranking: {
-        _id: '2',
-        creator_id: '2',
-        upvotes: 280,
-        downvotes: 20,
-        eloScore: 2100,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    },
-    {
-      _id: '3',
-      name: 'Full Stack Development with Next.js',
-      description: 'Master full stack development using Next.js, React, and modern backend technologies.',
-      background: 'https://images.unsplash.com/photo-1627398242454-45a1465c2479?q=80&w=2832&auto=format&fit=crop',
-      creator_id: '3',
-      isPublic: true,
-      categories: ['Full Stack Development'],
-      difficulty: 'Intermediate',
-      isOriginal: true,
-      createdAt: new Date('2024-03-10'),
-      updatedAt: new Date(),
-      ranking: {
-        _id: '3',
-        creator_id: '3',
-        upvotes: 200,
-        downvotes: 15,
-        eloScore: 1900,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    }
-  ]);
-
+  const router = useRouter();
+  
+  // State management
+  const [courses, setCourses] = useState<CourseWithRanking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Filter and pagination state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'all'>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'all'>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('popular');
+  const [sortBy, setSortBy] = useState<SortOption>('createdAt');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCourses, setTotalCourses] = useState(0);
+  
+  // Search debounce
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   const categories: Category[] = ['Web3', 'AI/ML', 'Full Stack Development', 'Marketing', 'Designs'];
   const difficulties: Difficulty[] = ['Beginner', 'Intermediate', 'Advanced'];
+  const coursesPerPage = 12;
 
-  const filteredAndSortedCourses = courses
-    .filter(course => {
-      const matchesSearch = course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          course.description?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || course.categories.includes(selectedCategory as Category);
-      const matchesDifficulty = selectedDifficulty === 'all' || course.difficulty === selectedDifficulty;
-      return matchesSearch && matchesCategory && matchesDifficulty;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'popular':
-          return (b.ranking?.upvotes || 0) - (a.ranking?.upvotes || 0);
-        case 'newest':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'ranking':
-          return (b.ranking?.eloScore || 0) - (a.ranking?.eloScore || 0);
-        default:
-          return 0;
-      }
-    });
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch courses when filters change
+  useEffect(() => {
+    fetchCourses();
+  }, [debouncedSearchQuery, selectedCategory, selectedDifficulty, sortBy, currentPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery, selectedCategory, selectedDifficulty, sortBy]);
+
+  const fetchCourses = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = {
+        category: selectedCategory === 'all' ? undefined : selectedCategory,
+        difficulty: selectedDifficulty === 'all' ? undefined : selectedDifficulty,
+        searchQuery: debouncedSearchQuery || undefined,
+        page: currentPage,
+        limit: coursesPerPage,
+        sortBy: sortBy === 'popular' ? 'eloScore' : sortBy as 'createdAt' | 'eloScore'
+      };
+
+      const response = await getCourses(params);
+      
+      setCourses(response.courses);
+      setTotalPages(response.totalPages);
+      setTotalCourses(response.totalCourses);
+      
+    } catch (error) {
+      console.error('Failed to fetch courses:', error);
+      setError('Failed to load courses. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCourseClick = (courseId: string) => {
+    router.push(`/my-courses/${courseId}`);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const getDifficultyColor = (difficulty: Difficulty) => {
     switch(difficulty) {
@@ -154,16 +144,102 @@ export default function CoursesPage() {
     return 'text-white/60';
   };
 
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const pageNumbers = [];
+    const maxVisiblePages = 5;
+    const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-center gap-2 mt-8">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="border-white/20 text-white hover:bg-white/10"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+        
+        {startPage > 1 && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(1)}
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              1
+            </Button>
+            {startPage > 2 && <span className="text-white/60">...</span>}
+          </>
+        )}
+        
+        {pageNumbers.map(page => (
+          <Button
+            key={page}
+            variant={page === currentPage ? "default" : "outline"}
+            size="sm"
+            onClick={() => handlePageChange(page)}
+            className={
+              page === currentPage
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "border-white/20 text-white hover:bg-white/10"
+            }
+          >
+            {page}
+          </Button>
+        ))}
+        
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && <span className="text-white/60">...</span>}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(totalPages)}
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              {totalPages}
+            </Button>
+          </>
+        )}
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="border-white/20 text-white hover:bg-white/10"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-black">
-        <Navbar/>
+    <div className="min-h-screen bg-black pt-20">
+      <Navbar/>
       <div className="container mx-auto py-8 px-4">
-        <div className="max-w-7xl mx-auto space-y-8 mt-[50px]">
+        <div className="max-w-7xl mx-auto space-y-8">
           {/* Header and Search */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-4xl font-bold text-white mb-2">Explore Courses</h1>
-              <p className="text-white/60">Discover and learn from our community&apos;s best courses</p>
+              <p className="text-white/60">
+                Discover and learn from our community&apos;s best courses
+                {totalCourses > 0 && (
+                  <span className="ml-2">({totalCourses} course{totalCourses !== 1 ? 's' : ''})</span>
+                )}
+              </p>
             </div>
             <div className="relative w-full md:w-96">
               <Input
@@ -174,11 +250,14 @@ export default function CoursesPage() {
                 className="bg-black/50 text-white border-white/20 pl-10"
               />
               <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+              {loading && (
+                <FaSpinner className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 animate-spin" />
+              )}
             </div>
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
             <Select
               value={selectedCategory}
               onValueChange={(value) => setSelectedCategory(value as Category | 'all')}
@@ -211,99 +290,155 @@ export default function CoursesPage() {
 
             <div className="flex-grow" />
 
-            <Tabs defaultValue="popular" value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+            <Tabs value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
               <TabsList className="bg-black/50 border border-white/20">
+                <TabsTrigger value="createdAt" className="data-[state=active]:bg-white/10">
+                  Newest
+                </TabsTrigger>
                 <TabsTrigger value="popular" className="data-[state=active]:bg-white/10">
                   Popular
                 </TabsTrigger>
-                <TabsTrigger value="newest" className="data-[state=active]:bg-white/10">
-                  Newest
-                </TabsTrigger>
-                <TabsTrigger value="ranking" className="data-[state=active]:bg-white/10">
+                <TabsTrigger value="eloScore" className="data-[state=active]:bg-white/10">
                   Top Rated
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
-          {/* Courses Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAndSortedCourses.map((course) => (
-              <div
-                key={course._id}
-                className="group relative rounded-lg border border-white/10 hover:border-white/20 transition-all overflow-hidden cursor-pointer"
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center gap-3 text-white/60">
+                <FaSpinner className="w-5 h-5 animate-spin" />
+                <span>Loading courses...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 text-center">
+              <p className="text-red-400 mb-4">{error}</p>
+              <Button 
+                onClick={fetchCourses}
+                className="bg-red-600 hover:bg-red-700"
               >
-                {/* Course Background Image */}
-                <div className="relative h-48 w-full overflow-hidden">
-                  <Image
-                    src={course.background || '/default-course-bg.jpg'}
-                    alt={course.name}
-                    fill
-                    className="object-cover transition-transform group-hover:scale-105"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20" />
-                  <Badge 
-                    className={`${getDifficultyColor(course.difficulty)} absolute top-4 right-4`}
+                Try Again
+              </Button>
+            </div>
+          )}
+
+          {/* Courses Grid */}
+          {!loading && !error && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {courses.map((course) => (
+                  <div
+                    key={course._id}
+                    onClick={() => handleCourseClick(course._id)}
+                    className="group relative rounded-lg border border-white/10 hover:border-white/20 transition-all overflow-hidden cursor-pointer hover:scale-105"
                   >
-                    {course.difficulty}
-                  </Badge>
-                </div>
-
-                {/* Course Content */}
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold text-white mb-2">{course.name}</h3>
-                  <p className="text-white/60 mb-4 line-clamp-2">{course.description}</p>
-                  
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {course.categories.map((category) => (
-                      <Badge key={category} className={getCategoryColor(category)}>
-                        {category}
+                    {/* Course Background Image */}
+                    <div className="relative h-48 w-full overflow-hidden">
+                      <Image
+                        src={course.background || '/default-course-bg.jpg'}
+                        alt={course.name}
+                        fill
+                        className="object-cover transition-transform group-hover:scale-110"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20" />
+                      <Badge 
+                        className={`${getDifficultyColor(course.difficulty)} absolute top-4 right-4`}
+                      >
+                        {course.difficulty}
                       </Badge>
-                    ))}
-                  </div>
+                    </div>
 
-                  {/* Ranking Information */}
-                  <div className="border-t border-white/10 pt-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <FaThumbsUp className="text-green-500" />
-                          <span className="text-white">{course.ranking?.upvotes || 0}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <FaThumbsDown className="text-red-500" />
-                          <span className="text-white">{course.ranking?.downvotes || 0}</span>
+                    {/* Course Content */}
+                    <div className="p-6">
+                      <h3 className="text-xl font-semibold text-white mb-2 line-clamp-1">{course.name}</h3>
+                      <p className="text-white/60 mb-4 line-clamp-2 text-sm">{course.description}</p>
+                      
+                      <div className="flex flex-wrap gap-1 mb-4">
+                        {course.categories.slice(0, 2).map((category) => (
+                          <Badge key={category} className={`${getCategoryColor(category)} text-xs`}>
+                            {category}
+                          </Badge>
+                        ))}
+                        {course.categories.length > 2 && (
+                          <Badge className="bg-white/10 text-white/60 text-xs">
+                            +{course.categories.length - 2}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Ranking Information */}
+                      <div className="border-t border-white/10 pt-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1">
+                              <FaThumbsUp className="text-green-500 w-3 h-3" />
+                              <span className="text-white text-sm">{course.ranking?.upvotes || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <FaThumbsDown className="text-red-500 w-3 h-3" />
+                              <span className="text-white text-sm">{course.ranking?.downvotes || 0}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <TbTrophy className={`${getEloScoreColor(course.ranking?.eloScore || 0)} w-4 h-4`} />
+                            <span className={`font-semibold text-sm ${getEloScoreColor(course.ranking?.eloScore || 0)}`}>
+                              {course.ranking?.eloScore || 0}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <TbTrophy className={getEloScoreColor(course.ranking?.eloScore || 0)} />
-                        <span className={`font-semibold ${getEloScoreColor(course.ranking?.eloScore || 0)}`}>
-                          {course.ranking?.eloScore || 0}
+
+                      <div className="flex justify-between items-center mt-4">
+                        <span className="text-white/40 text-xs">
+                          {new Date(course.createdAt).toLocaleDateString()}
                         </span>
+                        {!course.isOriginal && (
+                          <Badge variant="outline" className="text-white/60 border-white/20 text-xs">
+                            Forked
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex justify-between items-center mt-4">
-                    <span className="text-white/40 text-sm">
-                      Created {new Date(course.createdAt).toLocaleDateString()}
-                    </span>
-                    {!course.isOriginal && (
-                      <Badge variant="outline" className="text-white/60 border-white/20">
-                        Forked
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {filteredAndSortedCourses.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-white/60 text-lg">No courses found matching your criteria</p>
-            </div>
+              {/* Empty State */}
+              {courses.length === 0 && !loading && (
+                <div className="text-center py-12">
+                  <div className="text-white/40 text-6xl mb-4">📚</div>
+                  <h3 className="text-xl font-semibold text-white mb-2">No courses found</h3>
+                  <p className="text-white/60 mb-6">
+                    {searchQuery || selectedCategory !== 'all' || selectedDifficulty !== 'all'
+                      ? "Try adjusting your filters or search terms"
+                      : "Be the first to create a course!"}
+                  </p>
+                  {(searchQuery || selectedCategory !== 'all' || selectedDifficulty !== 'all') && (
+                    <Button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSelectedCategory('all');
+                        setSelectedDifficulty('all');
+                      }}
+                      variant="outline"
+                      className="border-white/20 text-white hover:bg-white/10"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {renderPagination()}
+            </>
           )}
         </div>
       </div>

@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   FaThumbsUp, 
   FaThumbsDown, 
@@ -24,10 +25,23 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaUser,
-  FaEye
+  FaEye,
+  FaCopy,
+  FaExpand,
+  FaCompress,
+  FaListOl,
+  FaGraduationCap,
+  FaLink,
+  FaHeading,
+  FaBold,
+  FaItalic,
+  FaListUl,
+  FaQuoteLeft,
+  FaCode,
+  FaStrikethrough
 } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, MicOff, ArrowUp, ArrowDown, Hash, Type, AlignLeft } from 'lucide-react';
 import Image from 'next/image';
 import { 
   getCourseById, 
@@ -47,6 +61,581 @@ interface ModuleFormData {
   content: string;
   media: string[];
   index: number;
+}
+
+interface Assessment {
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation?: string;
+}
+
+interface ModuleSection {
+  id: string;
+  type: 'heading' | 'paragraph' | 'list' | 'quote' | 'code' | 'divider' | 'media' | 'assessment';
+  content: string;
+  level?: number; // for headings (1-6)
+  listType?: 'ordered' | 'unordered'; // for lists
+  items?: string[]; // for lists
+  mediaUrl?: string; // for media
+  assessment?: Assessment; // for assessments
+}
+
+interface OriginalModule {
+  _id: string;
+  name: string;
+  content: string;
+  media: string[];
+  index: number;
+  sections?: ModuleSection[];
+  isFromOriginal?: boolean;
+}
+
+interface ForkCourseModalProps {
+  children: React.ReactNode;
+  course: Course;
+  currentUserId: string;
+  onForkSuccess: (newCourseId: string) => void;
+}
+
+function ForkCourseModal({ children, course, currentUserId, onForkSuccess }: ForkCourseModalProps) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleFork = async () => {
+    try {
+      setLoading(true);
+      const newCourseId = `course_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const result = await forkCourse({
+        originalCourseId: course._id,
+        newCourseId,
+        creator_id: currentUserId,
+      });
+
+      if (result.success) {
+        setOpen(false);
+        onForkSuccess(newCourseId);
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error('Failed to fork course:', error);
+      alert('Failed to fork course');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {children}
+      </DialogTrigger>
+      <DialogContent className="bg-black border-white/20 text-white max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold">Fork Course</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          <p className="text-white/70">
+            Are you sure you want to fork "{course.name}"? This will create a copy of the course structure that you can modify.
+          </p>
+          
+          <div className="flex gap-4 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="flex-1 border-white/20 text-white hover:bg-white/10"
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleFork}
+              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+              disabled={loading}
+            >
+              {loading ? 'Forking...' : 'Fork Course'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface NotionEditorProps {
+  sections: ModuleSection[];
+  onChange: (sections: ModuleSection[]) => void;
+}
+
+function NotionEditor({ sections, onChange }: NotionEditorProps) {
+  const addSection = (type: ModuleSection['type'], index?: number) => {
+    const newSection: ModuleSection = {
+      id: `section_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      content: '',
+      ...(type === 'heading' && { level: 1 }),
+      ...(type === 'list' && { listType: 'unordered', items: [''] }),
+      ...(type === 'assessment' && { 
+        assessment: {
+          question: '',
+          options: ['', '', '', ''],
+          correctAnswer: 0
+        }
+      })
+    };
+
+    if (index !== undefined) {
+      const newSections = [...sections];
+      newSections.splice(index + 1, 0, newSection);
+      onChange(newSections);
+    } else {
+      onChange([...sections, newSection]);
+    }
+  };
+
+  const updateSection = (id: string, updates: Partial<ModuleSection>) => {
+    onChange(sections.map(section => 
+      section.id === id ? { ...section, ...updates } : section
+    ));
+  };
+
+  const deleteSection = (id: string) => {
+    onChange(sections.filter(section => section.id !== id));
+  };
+
+  const moveSection = (id: string, direction: 'up' | 'down') => {
+    const index = sections.findIndex(s => s.id === id);
+    if (index === -1) return;
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= sections.length) return;
+
+    const newSections = [...sections];
+    [newSections[index], newSections[newIndex]] = [newSections[newIndex], newSections[index]];
+    onChange(newSections);
+  };
+
+  const embedMedia = (url: string, sectionId: string) => {
+    if (!url.trim()) return;
+    
+    updateSection(sectionId, { mediaUrl: url.trim() });
+  };
+
+  const renderSection = (section: ModuleSection, index: number) => {
+    return (
+      <div key={section.id} className="group relative border border-white/10 rounded-lg p-4 hover:border-white/20">
+        {/* Section Controls */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => moveSection(section.id, 'up')}
+            disabled={index === 0}
+            className="h-6 w-6 p-0"
+          >
+            <ArrowUp className="w-3 h-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => moveSection(section.id, 'down')}
+            disabled={index === sections.length - 1}
+            className="h-6 w-6 p-0"
+          >
+            <ArrowDown className="w-3 h-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => deleteSection(section.id)}
+            className="h-6 w-6 p-0 text-red-500"
+          >
+            <FaTrash className="w-3 h-3" />
+          </Button>
+        </div>
+
+        {/* Section Content */}
+        <div className="space-y-3">
+          {section.type === 'heading' && (
+            <div className="space-y-2">
+              <div className="flex gap-2 items-center">
+                <Select
+                  value={section.level?.toString() || '1'}
+                  onValueChange={(value) => updateSection(section.id, { level: parseInt(value) })}
+                >
+                  <SelectTrigger className="w-20 bg-black/50 border-white/20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-white/20">
+                    {[1, 2, 3, 4, 5, 6].map(level => (
+                      <SelectItem key={level} value={level.toString()}>H{level}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FaHeading className="text-white/60" />
+              </div>
+              <Input
+                value={section.content}
+                onChange={(e) => updateSection(section.id, { content: e.target.value })}
+                placeholder="Enter heading..."
+                className="bg-black/50 border-white/20 text-white text-lg font-bold"
+              />
+            </div>
+          )}
+
+          {section.type === 'paragraph' && (
+            <Textarea
+              value={section.content}
+              onChange={(e) => updateSection(section.id, { content: e.target.value })}
+              placeholder="Type your paragraph here..."
+              className="bg-black/50 border-white/20 text-white min-h-[100px]"
+            />
+          )}
+
+          {section.type === 'list' && (
+            <div className="space-y-2">
+              <div className="flex gap-2 items-center">
+                <Select
+                  value={section.listType || 'unordered'}
+                  onValueChange={(value: 'ordered' | 'unordered') => 
+                    updateSection(section.id, { listType: value })}
+                >
+                  <SelectTrigger className="w-32 bg-black/50 border-white/20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-white/20">
+                    <SelectItem value="unordered">Bullets</SelectItem>
+                    <SelectItem value="ordered">Numbers</SelectItem>
+                  </SelectContent>
+                </Select>
+                {section.listType === 'ordered' ? <FaListOl /> : <FaListUl />}
+              </div>
+              <div className="space-y-2">
+                {(section.items || []).map((item, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      value={item}
+                      onChange={(e) => {
+                        const newItems = [...(section.items || [])];
+                        newItems[idx] = e.target.value;
+                        updateSection(section.id, { items: newItems });
+                      }}
+                      placeholder={`Item ${idx + 1}...`}
+                      className="bg-black/50 border-white/20 text-white"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        const newItems = (section.items || []).filter((_, i) => i !== idx);
+                        updateSection(section.id, { items: newItems });
+                      }}
+                      className="text-red-500"
+                    >
+                      <FaTrash />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const newItems = [...(section.items || []), ''];
+                    updateSection(section.id, { items: newItems });
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <FaPlus className="mr-2" /> Add Item
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {section.type === 'quote' && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <FaQuoteLeft className="text-white/60" />
+                <span className="text-white/60">Quote</span>
+              </div>
+              <Textarea
+                value={section.content}
+                onChange={(e) => updateSection(section.id, { content: e.target.value })}
+                placeholder="Enter your quote..."
+                className="bg-black/50 border-white/20 text-white border-l-4 border-l-blue-500"
+              />
+            </div>
+          )}
+
+          {section.type === 'code' && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <FaCode className="text-white/60" />
+                <span className="text-white/60">Code Block</span>
+              </div>
+              <Textarea
+                value={section.content}
+                onChange={(e) => updateSection(section.id, { content: e.target.value })}
+                placeholder="Enter your code..."
+                className="bg-black/80 border-white/20 text-green-400 font-mono"
+              />
+            </div>
+          )}
+
+          {section.type === 'media' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <FaLink className="text-white/60" />
+                <span className="text-white/60">Media Embed</span>
+              </div>
+              <Input
+                value={section.mediaUrl || ''}
+                onChange={(e) => updateSection(section.id, { mediaUrl: e.target.value })}
+                placeholder="Enter media URL (YouTube, image, etc.)..."
+                className="bg-black/50 border-white/20 text-white"
+              />
+              {section.mediaUrl && (
+                <div className="border border-white/10 rounded p-4">
+                  {section.mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                    <div className="relative h-48 w-full overflow-hidden rounded">
+                      <Image
+                        src={section.mediaUrl}
+                        alt="Embedded media"
+                        fill
+                        className="object-cover"
+                        sizes="100%"
+                      />
+                    </div>
+                  ) : section.mediaUrl.includes('youtube.com') || section.mediaUrl.includes('youtu.be') ? (
+                    <div className="aspect-video">
+                      <iframe
+                        src={section.mediaUrl.replace('watch?v=', 'embed/')}
+                        className="w-full h-full rounded"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-white/5 rounded">
+                      <a 
+                        href={section.mediaUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 break-all"
+                      >
+                        {section.mediaUrl}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {section.type === 'assessment' && (
+            <div className="space-y-4 border border-yellow-500/20 rounded-lg p-4 bg-yellow-500/5">
+              <div className="flex items-center gap-2">
+                <FaGraduationCap className="text-yellow-500" />
+                <span className="text-yellow-500 font-medium">Assessment</span>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-white">Question</Label>
+                  <Textarea
+                    value={section.assessment?.question || ''}
+                    onChange={(e) => updateSection(section.id, {
+                      assessment: { 
+                        ...section.assessment!, 
+                        question: e.target.value 
+                      }
+                    })}
+                    placeholder="Enter your question..."
+                    className="bg-black/50 border-white/20 text-white mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-white">Options</Label>
+                  <div className="space-y-2 mt-2">
+                    {(section.assessment?.options || []).map((option, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input
+                          type="radio"
+                          name={`correct-${section.id}`}
+                          checked={section.assessment?.correctAnswer === idx}
+                          onChange={() => updateSection(section.id, {
+                            assessment: {
+                              ...section.assessment!,
+                              correctAnswer: idx
+                            }
+                          })}
+                          className="text-green-500"
+                        />
+                        <Input
+                          value={option}
+                          onChange={(e) => {
+                            const newOptions = [...(section.assessment?.options || [])];
+                            newOptions[idx] = e.target.value;
+                            updateSection(section.id, {
+                              assessment: {
+                                ...section.assessment!,
+                                options: newOptions
+                              }
+                            });
+                          }}
+                          placeholder={`Option ${idx + 1}...`}
+                          className="bg-black/50 border-white/20 text-white flex-1"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-white">Explanation (Optional)</Label>
+                  <Textarea
+                    value={section.assessment?.explanation || ''}
+                    onChange={(e) => updateSection(section.id, {
+                      assessment: {
+                        ...section.assessment!,
+                        explanation: e.target.value
+                      }
+                    })}
+                    placeholder="Explain the correct answer..."
+                    className="bg-black/50 border-white/20 text-white mt-2"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {section.type === 'divider' && (
+            <div className="border-t border-white/20 my-4" />
+          )}
+
+          {/* Add Section Button */}
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex gap-2 mt-3 flex-wrap">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('heading', index)}
+                className="text-xs"
+              >
+                <FaHeading className="mr-1" /> Heading
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('paragraph', index)}
+                className="text-xs"
+              >
+                <AlignLeft className="mr-1 w-3 h-3" /> Text
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('list', index)}
+                className="text-xs"
+              >
+                <FaListUl className="mr-1" /> List
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('quote', index)}
+                className="text-xs"
+              >
+                <FaQuoteLeft className="mr-1" /> Quote
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('code', index)}
+                className="text-xs"
+              >
+                <FaCode className="mr-1" /> Code
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('media', index)}
+                className="text-xs"
+              >
+                <FaImage className="mr-1" /> Media
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('assessment', index)}
+                className="text-xs"
+              >
+                <FaGraduationCap className="mr-1" /> Quiz
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => addSection('divider', index)}
+                className="text-xs"
+              >
+                --- Divider
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {sections.length === 0 && (
+        <div className="text-center py-8 border-2 border-dashed border-white/20 rounded-lg">
+          <p className="text-white/60 mb-4">Start creating your content</p>
+          <div className="flex gap-2 justify-center flex-wrap">
+            <Button onClick={() => addSection('heading')} size="sm">
+              <FaHeading className="mr-2" /> Add Heading
+            </Button>
+            <Button onClick={() => addSection('paragraph')} size="sm">
+              <AlignLeft className="mr-2 w-4 h-4" /> Add Text
+            </Button>
+            <Button onClick={() => addSection('media')} size="sm">
+              <FaImage className="mr-2" /> Add Media
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {sections.map((section, index) => renderSection(section, index))}
+
+      {sections.length > 0 && (
+        <div className="flex gap-2 justify-center mt-6 p-4 border border-dashed border-white/20 rounded-lg">
+          <Button onClick={() => addSection('heading')} size="sm" variant="ghost">
+            <FaHeading className="mr-1" /> Heading
+          </Button>
+          <Button onClick={() => addSection('paragraph')} size="sm" variant="ghost">
+            <AlignLeft className="mr-1 w-3 h-3" /> Text
+          </Button>
+          <Button onClick={() => addSection('list')} size="sm" variant="ghost">
+            <FaListUl className="mr-1" /> List
+          </Button>
+          <Button onClick={() => addSection('quote')} size="sm" variant="ghost">
+            <FaQuoteLeft className="mr-1" /> Quote
+          </Button>
+          <Button onClick={() => addSection('code')} size="sm" variant="ghost">
+            <FaCode className="mr-1" /> Code
+          </Button>
+          <Button onClick={() => addSection('media')} size="sm" variant="ghost">
+            <FaImage className="mr-1" /> Media
+          </Button>
+          <Button onClick={() => addSection('assessment')} size="sm" variant="ghost">
+            <FaGraduationCap className="mr-1" /> Quiz
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface CreateModuleModalProps {
@@ -72,7 +661,8 @@ function CreateModuleModal({
     media: editingModule?.media || [],
     index: editingModule?.index || moduleCount + 1
   });
-  const [newMediaUrl, setNewMediaUrl] = useState('');
+  const [sections, setSections] = useState<ModuleSection[]>([]);
+  const [editorMode, setEditorMode] = useState<'simple' | 'notion'>('notion');
 
   useEffect(() => {
     if (editingModule) {
@@ -85,6 +675,19 @@ function CreateModuleModal({
     }
   }, [editingModule]);
 
+  useEffect(() => {
+    if (open && !editingModule && sections.length === 0) {
+      setSections([
+        {
+          id: `section_${Date.now()}`,
+          type: 'heading',
+          content: '',
+          level: 1
+        }
+      ]);
+    }
+  }, [open, editingModule, sections.length]);
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -92,31 +695,48 @@ function CreateModuleModal({
       media: [],
       index: moduleCount + 1
     });
-    setNewMediaUrl('');
+    setSections([]);
   };
 
-  const addMediaUrl = () => {
-    if (newMediaUrl.trim() && !formData.media.includes(newMediaUrl.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        media: [...prev.media, newMediaUrl.trim()]
-      }));
-      setNewMediaUrl('');
-    }
-  };
-
-  const removeMediaUrl = (url: string) => {
-    setFormData(prev => ({
-      ...prev,
-      media: prev.media.filter(m => m !== url)
-    }));
+  const convertSectionsToContent = () => {
+    return sections.map(section => {
+      switch (section.type) {
+        case 'heading':
+          return `${'#'.repeat(section.level || 1)} ${section.content}`;
+        case 'paragraph':
+          return section.content;
+        case 'list':
+          return (section.items || []).map((item, idx) => 
+            section.listType === 'ordered' ? `${idx + 1}. ${item}` : `• ${item}`
+          ).join('\n');
+        case 'quote':
+          return `> ${section.content}`;
+        case 'code':
+          return `\`\`\`\n${section.content}\n\`\`\``;
+        case 'media':
+          return `[Media: ${section.mediaUrl}]`;
+        case 'assessment':
+          return `[Quiz: ${section.assessment?.question}]`;
+        case 'divider':
+          return '---';
+        default:
+          return section.content;
+      }
+    }).join('\n\n');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name.trim() || !formData.content.trim()) {
-      alert('Please fill in all required fields');
+    if (!formData.name.trim()) {
+      alert('Please enter a module name');
+      return;
+    }
+
+    const finalContent = editorMode === 'notion' ? convertSectionsToContent() : formData.content;
+    
+    if (!finalContent.trim()) {
+      alert('Please add some content to the module');
       return;
     }
 
@@ -127,12 +747,14 @@ function CreateModuleModal({
       if (editingModule) {
         result = await updateModule({
           moduleId: editingModule._id,
-          ...formData
+          ...formData,
+          content: finalContent
         });
       } else {
         result = await createModule({
           course_id: courseId,
-          ...formData
+          ...formData,
+          content: finalContent
         });
       }
 
@@ -152,22 +774,12 @@ function CreateModuleModal({
     }
   };
 
-  const getMediaIcon = (url: string) => {
-    if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com')) {
-      return <FaPlay className="text-red-500" />;
-    }
-    if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-      return <FaImage className="text-blue-500" />;
-    }
-    return <FaFile className="text-gray-500" />;
-  };
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="bg-black border-white/20 text-white max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-black border-white/20 text-white max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">
             {editingModule ? 'Edit Module' : 'Create New Module'}
@@ -176,7 +788,6 @@ function CreateModuleModal({
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Module Name */}
             <div className="space-y-2">
               <Label htmlFor="name" className="text-white">Module Name *</Label>
               <Input
@@ -189,7 +800,6 @@ function CreateModuleModal({
               />
             </div>
 
-            {/* Module Index */}
             <div className="space-y-2">
               <Label htmlFor="index" className="text-white">Module Index *</Label>
               <Input
@@ -204,61 +814,48 @@ function CreateModuleModal({
             </div>
           </div>
 
-          {/* Module Content */}
-          <div className="space-y-2">
-            <Label htmlFor="content" className="text-white">Module Content *</Label>
-            <Textarea
-              id="content"
-              value={formData.content}
-              onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-              placeholder="Enter module content..."
-              className="bg-black/50 border-white/20 text-white min-h-[200px]"
-              required
-            />
-          </div>
-
-          {/* Media URLs */}
-          <div className="space-y-2">
-            <Label className="text-white">Media Files</Label>
-            
-            {/* Add new media URL */}
-            <div className="flex gap-2">
-              <Input
-                value={newMediaUrl}
-                onChange={(e) => setNewMediaUrl(e.target.value)}
-                placeholder="Enter media URL (video, image, etc.)"
-                className="bg-black/50 border-white/20 text-white flex-1"
-              />
-              <Button type="button" onClick={addMediaUrl} className="bg-blue-600 hover:bg-blue-700">
-                <FaPlus />
-              </Button>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <Label className="text-white">Module Content *</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={editorMode === 'simple' ? 'default' : 'outline'}
+                  onClick={() => setEditorMode('simple')}
+                  className="border-white/20"
+                >
+                  Simple Editor
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={editorMode === 'notion' ? 'default' : 'outline'}
+                  onClick={() => setEditorMode('notion')}
+                  className="border-white/20"
+                >
+                  <FaListOl className="mr-2" />
+                  Notion-like Editor
+                </Button>
+              </div>
             </div>
 
-            {/* Display existing media URLs */}
-            {formData.media.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm text-white/60">Added Media Files:</p>
-                {formData.media.map((url, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-white/5 rounded border border-white/10">
-                    {getMediaIcon(url)}
-                    <span className="flex-1 text-sm text-white/80 truncate">{url}</span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => removeMediaUrl(url)}
-                      className="border-red-500/20 text-red-500 hover:bg-red-500/10"
-                    >
-                      <FaTrash />
-                    </Button>
-                  </div>
-                ))}
+            {editorMode === 'simple' ? (
+              <Textarea
+                value={formData.content}
+                onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                placeholder="Enter module content..."
+                className="bg-black/50 border-white/20 text-white min-h-[300px]"
+                required
+              />
+            ) : (
+              <div className="border border-white/20 rounded-lg p-4 bg-black/30">
+                <NotionEditor sections={sections} onChange={setSections} />
               </div>
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-4 pt-4">
+          <div className="flex gap-4 pt-4 border-t border-white/10">
             <Button
               type="button"
               variant="outline"
@@ -298,8 +895,6 @@ export default function CourseDetailPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcription, setTranscription] = useState<string>('');
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
-
-  // AI Transcription state for each module
   const [moduleTranscriptions, setModuleTranscriptions] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
@@ -309,44 +904,43 @@ export default function CourseDetailPage() {
     }
   }, []);
 
-    useEffect(() => {
+  useEffect(() => {
     if (courseId) {
-        const loadData = async () => {
+      const loadData = async () => {
         setLoading(true);
         try {
-            await Promise.all([
+          await Promise.all([
             fetchCourseData(),
             fetchModules()
-            ]);
+          ]);
         } catch (error) {
-            console.error('Failed to load course data:', error);
+          console.error('Failed to load course data:', error);
         } finally {
-            setLoading(false);
+          setLoading(false);
         }
-        };
-        
-        loadData();
+      };
+      
+      loadData();
     }
-    }, [courseId]);
+  }, [courseId]);
 
-    // Update these functions to not manage loading state individually
-    const fetchCourseData = async () => {
+  const fetchCourseData = async () => {
     try {
-        const courseData = await getCourseById(courseId);
-        setCourse(courseData);
+      const courseData = await getCourseById(courseId);
+      setCourse(courseData);
     } catch (error) {
-        console.error('Failed to fetch course:', error);
+      console.error('Failed to fetch course:', error);
     }
-    };
+  };
 
-    const fetchModules = async () => {
+  const fetchModules = async () => {
     try {
-        const moduleData = await getModulesByCourseId(courseId);
-        setModules(moduleData.sort((a, b) => a.index - b.index));
+      const moduleData = await getModulesByCourseId(courseId);
+      setModules(moduleData.sort((a, b) => a.index - b.index));
     } catch (error) {
-        console.error('Failed to fetch modules:', error);
+      console.error('Failed to fetch modules:', error);
     }
-    };
+  };
 
   const handleVote = async (isUpvote: boolean) => {
     try {
@@ -357,7 +951,6 @@ export default function CourseDetailPage() {
 
       if (result.success) {
         setUserVote(isUpvote ? 'up' : 'down');
-        // Refetch course data to update vote counts
         fetchCourseData();
       } else {
         alert(result.message);
@@ -368,28 +961,9 @@ export default function CourseDetailPage() {
     }
   };
 
-  const handleForkCourse = async () => {
-    if (!course || !currentUserId) return;
-
-    const newCourseId = `course_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      const result = await forkCourse({
-        originalCourseId: courseId,
-        newCourseId,
-        creator_id: currentUserId
-      });
-
-      if (result.success) {
-        alert('Course forked successfully!');
-        router.push(`/my-courses/${newCourseId}`);
-      } else {
-        alert(result.message);
-      }
-    } catch (error) {
-      console.error('Failed to fork course:', error);
-      alert('Failed to fork course');
-    }
+  const handleForkSuccess = (newCourseId: string) => {
+    alert('Course forked successfully!');
+    router.push(`/my-courses`);
   };
 
   const handleDeleteModule = async (moduleId: string) => {
@@ -411,16 +985,13 @@ export default function CourseDetailPage() {
     }
   };
 
-  // AI Transcription handlers
   const startRecording = () => {
     setIsRecording(true);
-    // Implement Web Speech API or external transcription service
     console.log('Starting recording for module:', currentModuleIndex);
   };
 
   const stopRecording = () => {
     setIsRecording(false);
-    // Save transcription for current module
     if (modules[currentModuleIndex]) {
       setModuleTranscriptions(prev => ({
         ...prev,
@@ -462,10 +1033,10 @@ export default function CourseDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black pt-20">
       <Navbar/>
       <div className="container mx-auto py-8 px-4">
-        <div className="max-w-7xl mx-auto space-y-8 mt-[50px]">
+        <div className="max-w-7xl mx-auto space-y-8">
           {/* Course Header */}
           <div className="relative">
             <div className="relative h-64 w-full overflow-hidden rounded-lg">
@@ -507,7 +1078,6 @@ export default function CourseDetailPage() {
                   </div>
                   
                   <div className="flex gap-4">
-                    {/* Voting */}
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -529,19 +1099,23 @@ export default function CourseDetailPage() {
                       </Button>
                     </div>
                     
-                    {/* Fork Button */}
                     {!isCreator && (
-                      <Button onClick={handleForkCourse} className="bg-purple-600 hover:bg-purple-700">
-                        <FaCodeFork className="mr-2" />
-                        Fork Course
-                      </Button>
+                      <ForkCourseModal
+                        course={course}
+                        currentUserId={currentUserId}
+                        onForkSuccess={handleForkSuccess}
+                      >
+                        <Button className="bg-purple-600 hover:bg-purple-700">
+                          <FaCodeFork className="mr-2" />
+                          Fork Course
+                        </Button>
+                      </ForkCourseModal>
                     )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Course Stats */}
             <div className="flex justify-between items-center mt-6 p-4 bg-white/5 rounded-lg border border-white/10">
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
@@ -658,7 +1232,6 @@ export default function CourseDetailPage() {
             <div className="lg:col-span-3">
               {currentModule ? (
                 <div className="space-y-6">
-                  {/* Module Navigation */}
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-white">{currentModule.name}</h2>
                     <div className="flex gap-2">
@@ -803,7 +1376,6 @@ export default function CourseDetailPage() {
                           <Button 
                             className="bg-blue-600 hover:bg-blue-700"
                             onClick={() => {
-                              // Save transcription logic
                               console.log('Saving transcription for module:', currentModule._id);
                             }}
                           >

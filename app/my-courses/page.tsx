@@ -21,7 +21,7 @@ import { FaThumbsUp, FaThumbsDown, FaMagnifyingGlass, FaPlus, FaTrash, FaEye, Fa
 import { TbTrophy } from 'react-icons/tb';
 import { Edit3, TimerResetIcon } from 'lucide-react';
 import Image from 'next/image';
-import { getUserCourses, deleteCourse, updateCourse, createCourse, getCourseByCreatorId } from '@/lib/actions/course.actions';
+import {deleteCourse, updateCourse, createCourse, getCourseByCreatorId } from '@/lib/actions/course.actions';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/ui/Navbar';
 
