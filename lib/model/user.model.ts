@@ -61,7 +61,7 @@ const userSchema = new mongoose.Schema({
             type: String,
             validate: {
                 validator: function(v: string) {
-                    return !v || v.startsWith('https://linkedin.com/') || v.startsWith('https://www.linkedin.com/');
+                    return !v || v.startsWith('https://www.linkedin.com/in/');
                 },
                 message: 'Invalid LinkedIn URL'
             }

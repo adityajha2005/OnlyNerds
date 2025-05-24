@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
+
 // Clear the cached model to ensure schema changes take effect
 if (mongoose.models.Challenge) {
     delete mongoose.models.Challenge;
 }
+
 const questionSchema = new mongoose.Schema({
     question: {
         type: String,
@@ -35,9 +37,8 @@ const challengeSchema = new mongoose.Schema({
     creator_id: {
         type: String,
         required: true,
-        // Add validation for Ethereum address format
         validate: {
-            validator: function(v: string) {
+            validator: function (v: string) {
                 return /^0x[a-fA-F0-9]{40}$/.test(v);
             },
             message: 'creator_id must be a valid Ethereum address'
@@ -57,7 +58,7 @@ const challengeSchema = new mongoose.Schema({
         type: [questionSchema],
         required: true,
         validate: {
-            validator: function(arr: mongoose.Types.Array<any>) {
+            validator: function (arr: mongoose.Types.Array<any>) {
                 return Array.isArray(arr) && arr.length > 0;
             },
             message: 'At least one question is required'
@@ -80,13 +81,11 @@ const challengeSchema = new mongoose.Schema({
         type: Map,
         of: submissionSchema
     }
-}, { 
+}, {
     timestamps: true,
-    // Disable the automatic _id generation since you're providing custom _id
     _id: false
 });
 
-// Add index for better query performance
 challengeSchema.index({ creator_id: 1 });
 challengeSchema.index({ completed: 1 });
 

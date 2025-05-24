@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { FaGithub, FaXTwitter, FaLinkedin, FaThumbsUp, FaThumbsDown } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
 import Image from 'next/image';
-import { Navbar } from '@/components/ui/Navbar';
 import { useMetaMaskStore } from '@/lib/stores/metamask-store';
 import { updateUser, getUser, createUser, checkUserProfileComplete } from '@/lib/actions/user.actions';
 import { getUserCourses, getUserCourseStats, getUserTopCourses, getUserRecentActivity } from '@/lib/actions/course.actions';
@@ -18,12 +17,24 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import { Navbar } from '@/components/ui/Navbar';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { metaMaskIsConnected, walletAddress, initializeMetaMask } = useMetaMaskStore();
+  const  [walletAddress,setwalletAddress] = useState("");
   const [isEditing, setIsEditing] = useState(false);
-  const [user, setUser] = useState<Partial<User>>({});
+  // Initialize user state with default values to ensure controlled inputs
+  const [user, setUser] = useState<Partial<User>>({
+    name: '',
+    email: '',
+    bio: '',
+    avatar: '',
+    socials: {
+      github: '',
+      x: '',
+      linkedin: ''
+    }
+  });
   const [courses, setCourses] = useState<CourseWithRanking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
@@ -36,24 +47,34 @@ export default function ProfilePage() {
 
   // Initialize MetaMask connection
   useEffect(() => {
-    initializeMetaMask();
-  }, [initializeMetaMask]);
+    const wallet = localStorage.getItem("walletAddress")
+    if(wallet){
+      setwalletAddress(wallet);
+    }
+  }, [setwalletAddress]);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!metaMaskIsConnected || !walletAddress) {
-        router.push('/');
-        return;
-      }
       
       try {
         // Try to fetch existing user data
         const userData = await getUser(walletAddress);
         if (userData) {
-          setUser(userData);
+          // Ensure all fields have default values
+          setUser({
+            name: userData.name || '',
+            email: userData.email || '',
+            bio: userData.bio || '',
+            avatar: userData.avatar || '',
+            socials: {
+              github: userData.socials?.github || '',
+              x: userData.socials?.x || '',
+              linkedin: userData.socials?.linkedin || ''
+            }
+          });
           setIsNewUser(false);
         } else {
-          setUser({});
+          // Keep default initialized values for new user
           setIsNewUser(true);
         }
 
@@ -117,11 +138,21 @@ export default function ProfilePage() {
         if ((error as Error).message.includes('User not found')) {
           const newUser = await createUser(walletAddress);
           if (newUser) {
-            setUser(newUser);
+            setUser({
+              name: newUser.name || '',
+              email: newUser.email || '',
+              bio: newUser.bio || '',
+              avatar: newUser.avatar || '',
+              socials: {
+                github: newUser.socials?.github || '',
+                x: newUser.socials?.x || '',
+                linkedin: newUser.socials?.linkedin || ''
+              }
+            });
             setIsNewUser(true);
             setIsEditing(true); // Automatically open edit form for new users
           } else {
-            setUser({});
+            // Keep default initialized values
             toast.error('Failed to create user profile');
           }
         } else {
@@ -134,7 +165,7 @@ export default function ProfilePage() {
     };
 
     fetchData();
-  }, [metaMaskIsConnected, walletAddress, router]);
+  }, [walletAddress, router]);
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
@@ -151,13 +182,13 @@ export default function ProfilePage() {
     if (user.avatar && !/^(https?:\/\/)?.+\..+/.test(user.avatar)) {
       newErrors.avatar = 'Please enter a valid URL';
     }
-    if (user.socials?.github && !user.socials.github.startsWith('https://github.com/')) {
+    if (user.socials?.github && user.socials.github && !user.socials.github.startsWith('https://github.com/')) {
       newErrors.github = 'Please enter a valid GitHub URL';
     }
-    if (user.socials?.x && !user.socials.x.startsWith('https://x.com/')) {
+    if (user.socials?.x && user.socials.x && !user.socials.x.startsWith('https://x.com/')) {
       newErrors.x = 'Please enter a valid X/Twitter URL';
     }
-    if (user.socials?.linkedin && !(user.socials.linkedin.startsWith('https://linkedin.com/') || user.socials.linkedin.startsWith('https://www.linkedin.com/'))) {
+    if (user.socials?.linkedin && user.socials.linkedin && !(user.socials.linkedin.startsWith('https://linkedin.com/') || user.socials.linkedin.startsWith('https://www.linkedin.com/'))) {
       newErrors.linkedin = 'Please enter a valid LinkedIn URL starting with https://linkedin.com/ or https://www.linkedin.com/';
     }
 
@@ -384,7 +415,7 @@ export default function ProfilePage() {
     </Card>
   );
 
-  if (!metaMaskIsConnected) {
+  if (!walletAddress) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-white text-xl">Please connect your MetaMask wallet to view your profile</div>
@@ -402,9 +433,9 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black">
+        <Navbar/>
       <div className="container mx-auto py-8 px-4">
-        <Navbar />
-        <div className="max-w-4xl mx-auto space-y-8">
+]        <div className="max-w-4xl mx-auto space-y-8">
           {isProfileIncomplete && !isEditing && (
             <Alert variant="destructive" className="mb-6 bg-red-500/10 border-red-500/20 text-red-500">
               <AlertTriangle className="h-4 w-4" />
@@ -445,7 +476,7 @@ export default function ProfilePage() {
                       <div>
                         <label className="text-sm font-medium text-white">Name *</label>
                         <Input
-                          value={user.name}
+                          value={user.name || ''}
                           onChange={(e) => setUser({ ...user, name: e.target.value })}
                           className={`mt-1 bg-black/50 text-white border-white/20 ${errors.name ? 'border-red-500' : ''}`}
                         />
@@ -455,7 +486,7 @@ export default function ProfilePage() {
                         <label className="text-sm font-medium text-white">Email *</label>
                         <Input
                           type="email"
-                          value={user.email}
+                          value={user.email || ''}
                           onChange={(e) => setUser({ ...user, email: e.target.value })}
                           className={`mt-1 bg-black/50 text-white border-white/20 ${errors.email ? 'border-red-500' : ''}`}
                         />
@@ -464,7 +495,7 @@ export default function ProfilePage() {
                       <div>
                         <label className="text-sm font-medium text-white">Bio *</label>
                         <Textarea
-                          value={user.bio}
+                          value={user.bio || ''}
                           onChange={(e) => setUser({ ...user, bio: e.target.value })}
                           className={`mt-1 bg-black/50 text-white border-white/20 ${errors.bio ? 'border-red-500' : ''}`}
                           rows={4}
@@ -474,7 +505,7 @@ export default function ProfilePage() {
                       <div>
                         <label className="text-sm font-medium text-white">Avatar URL</label>
                         <Input
-                          value={user.avatar}
+                          value={user.avatar || ''}
                           onChange={(e) => setUser({ ...user, avatar: e.target.value })}
                           className={`mt-1 bg-black/50 text-white border-white/20 ${errors.avatar ? 'border-red-500' : ''}`}
                         />
@@ -484,7 +515,7 @@ export default function ProfilePage() {
                         <label className="text-sm font-medium text-white">Social Links</label>
                         <div className="space-y-2">
                           <Input
-                            value={user.socials?.github}
+                            value={user.socials?.github || ''}
                             onChange={(e) => setUser({
                               ...user,
                               socials: { ...user.socials, github: e.target.value }
@@ -494,7 +525,7 @@ export default function ProfilePage() {
                           />
                           {errors.github && <p className="text-red-500 text-sm mt-1">{errors.github}</p>}
                           <Input
-                            value={user.socials?.x}
+                            value={user.socials?.x || ''}
                             onChange={(e) => setUser({
                               ...user,
                               socials: { ...user.socials, x: e.target.value }
@@ -504,7 +535,7 @@ export default function ProfilePage() {
                           />
                           {errors.x && <p className="text-red-500 text-sm mt-1">{errors.x}</p>}
                           <Input
-                            value={user.socials?.linkedin}
+                            value={user.socials?.linkedin || ''}
                             onChange={(e) => setUser({
                               ...user,
                               socials: { ...user.socials, linkedin: e.target.value }

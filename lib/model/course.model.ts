@@ -1,65 +1,44 @@
 import mongoose from "mongoose";
 
-
 const courseSchema = new mongoose.Schema({
-    _id: {
-        type: String,
-        required: true,
-        unique: true,
-    },
-    name: {
-        type: String,
-        required: true,
+    creator_id: { type: String, ref: 'User', required: true }, 
+    name: { 
+        type: String, 
+        required: true, 
         trim: true,
         minLength: [2, 'Name must be at least 2 characters'],
-        maxLength: [70, 'Name cannot exceed 50 characters']
+        maxLength: [70, 'Name cannot exceed 70 characters']
     },
-    description: {
-        type: String,
+    description: { 
+        type: String, 
+        required: false, 
         trim: true,
-        maxLength: [500, 'Bio cannot exceed 500 characters']
+        maxLength: [500, 'Description cannot exceed 500 characters']
     },
-    background: {
-        type: String, // Changed from URL to String
+    background: { 
+        type: String, 
+        required: false,
         validate: {
             validator: function(v: string) {
-                return /^(https?:\/\/)?.+\..+/.test(v);
+                return !v || /^(https?:\/\/)?.+\..+/.test(v);
             },
             message: 'Please enter a valid URL'
         }
     },
-    creator_id : {
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User' 
-    },
-    isPublic : {
-        type: Boolean, 
-        required : true,
-        default : true,
-    },
-    categories: [{
-        type: String,
+    isPublic: { type: Boolean, required: true, default: true },
+    categories: [{ 
+        type: String, 
         enum: ['Web3', 'AI/ML', 'Full Stack Development', 'Marketing', 'Designs'],
-        required: true
-    }], 
-    difficulty: {
-        type: String,
+        required: true 
+    }],
+    difficulty: { 
+        type: String, 
         enum: ['Beginner', 'Intermediate', 'Advanced'],
-        required: true
+        required: true 
     },
-    isOriginal : {
-        type: Boolean, 
-        required : true,
-        default : false,
-    },
-    forkedFrom : {
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Course',
-        required : false,
-    }
-}, { 
-    timestamps: true,
-});
+    isOriginal: { type: Boolean, required: true, default: true },
+    forkedFrom: { type: String, ref: 'Course', required: false }
+}, { timestamps: true });
 
 courseSchema.index({ categories: 1 });  
 courseSchema.index({ difficulty: 1 }); 

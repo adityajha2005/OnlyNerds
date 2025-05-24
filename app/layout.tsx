@@ -1,10 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
-// import { Navbar } from '@/components/ui/Navbar'
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'OnlyNerds',
+  description: 'The decentralized AI-powered learning platform for real ones.',
 }
 
 export default function RootLayout({
@@ -15,7 +13,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {/* <Navbar /> */}
         {children}
       </body>
     </html>

@@ -4,10 +4,8 @@ import { connectToDB } from "@/lib/mongoose";
 import Course from "@/lib/model/course.model";
 import CourseRanking from "@/lib/model/courseRanking.model";
 import { revalidatePath } from "next/cache";
-import mongoose from "mongoose";
 
 interface CreateCourseParams {
-    courseId: string;
     name: string;
     description?: string;
     background?: string;
@@ -51,8 +49,7 @@ const serializeCourse = (course: any) => {
     };
 };
 
-export async function createCourse({
-    courseId,
+export const createCourse = async ({
     name,
     description,
     background,
@@ -62,11 +59,15 @@ export async function createCourse({
     difficulty,
     isOriginal = true,
     forkedFrom
-}: CreateCourseParams): Promise<{ success: boolean; message: string; course?: any }> {
+}: CreateCourseParams): Promise<{ success: boolean; message: string; course?: any }> => {
     try {
         await connectToDB();
+        
+        if (!name || !creator_id || !categories || !difficulty) {
+            return { success: false, message: 'Name, creator_id, categories, and difficulty are required' };
+        }
+
         const newCourse = await Course.create({
-            _id: courseId,
             name,
             description,
             background,
@@ -79,26 +80,25 @@ export async function createCourse({
         });
 
         await CourseRanking.create({
-            _id: `${courseId}_ranking`,
-            creator_id,
-            course_id: courseId,
+            creator_id: creator_id,
+            course_id: newCourse._id,
         });
 
-        revalidatePath("/courses");
         return { 
             success: true, 
             message: "Course created successfully",
-            course: newCourse 
+            course: serializeCourse(newCourse)
         };
     } catch (error: any) {
+        console.error(error);
         return { 
             success: false, 
             message: error.message || "Failed to create course" 
         };
     }
-}
-//updating existing course
-export async function updateCourse({
+};
+
+export const updateCourse = async ({
     courseId,
     name,
     description,
@@ -106,9 +106,13 @@ export async function updateCourse({
     isPublic,
     categories,
     difficulty,
-}: UpdateCourseParams): Promise<{ success: boolean; message: string }> {
+}: UpdateCourseParams): Promise<{ success: boolean; message: string }> => {
     try {
         await connectToDB();
+
+        if (!courseId) {
+            return { success: false, message: 'Course ID is required' };
+        }
 
         const updateData: Partial<UpdateCourseParams> = {
             name,
@@ -133,36 +137,63 @@ export async function updateCourse({
         revalidatePath("/courses");
         return { success: true, message: "Course updated successfully" };
     } catch (error: any) {
+        console.error(error);
         return { 
             success: false, 
             message: error.message || "Failed to update course" 
         };
     }
-}
+};
 
-//getting a single course by ID
-export async function getCourse(courseId: string) {
+
+export const getCourseByCreatorId = async (creator_id: string) => {
     try {
         await connectToDB();
+
+        if (!creator_id) {
+            throw new Error('Course ID is required');
+        }
+
+        const courses= await Course.find({creator_id :creator_id })
+            .lean();
+
+
+        return courses;
+    } catch (error: any) {
+        console.error(error);
+        throw new Error(`Failed to fetch course: ${error.message}`);
+    }
+};
+
+export const getCourseById = async (courseId: string) => {
+    try {
+        await connectToDB();
+
+        if (!courseId) {
+            throw new Error('Course ID is required');
+        }
 
         const course = await Course.findById(courseId)
             .populate('creator_id')
             .populate('forkedFrom')
-            .populate('ranking')
             .lean();
         
         if (!course) {
             throw new Error("Course not found");
         }
 
-        return serializeCourse(course);
+        // Get course ranking
+        const ranking = await CourseRanking.findOne({ course_id: courseId }).lean();
+        const courseWithRanking = { ...course, ranking };
+
+        return serializeCourse(courseWithRanking);
     } catch (error: any) {
+        console.error(error);
         throw new Error(`Failed to fetch course: ${error.message}`);
     }
-}
+};
 
-// Get all public courses with optional filters
-export async function getCourses({
+export const getCourses = async ({
     category,
     difficulty,
     searchQuery,
@@ -176,13 +207,12 @@ export async function getCourses({
     page?: number;
     limit?: number;
     sortBy?: 'createdAt' | 'eloScore';
-}) {
+}) => {
     try {
         await connectToDB();
 
         const query: any = { isPublic: true };
         
-        // Apply filters
         if (category) query.categories = category;
         if (difficulty) query.difficulty = difficulty;
         if (searchQuery) {
@@ -196,7 +226,6 @@ export async function getCourses({
 
         let courses;
         if (sortBy === 'eloScore') {
-            // Use aggregation pipeline for sorting by eloScore
             courses = await Course.aggregate([
                 { $match: query },
                 {
@@ -207,21 +236,25 @@ export async function getCourses({
                         as: 'ranking'
                     }
                 },
+                { $unwind: { path: '$ranking', preserveNullAndEmptyArrays: true } },
                 { $sort: { 'ranking.eloScore': -1 } },
                 { $skip: skip },
                 { $limit: limit }
             ]);
-
-            // Manually populate creator_id since aggregate doesn't support populate
-            await Course.populate(courses, { path: 'creator_id' });
         } else {
-            courses = await Course.find(query)
-                .populate('creator_id')
-                .populate('ranking')
+            const coursesData = await Course.find(query)
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
                 .lean();
+
+            // Get rankings for each course
+            courses = await Promise.all(
+                coursesData.map(async (course) => {
+                    const ranking = await CourseRanking.findOne({ course_id: course._id }).lean();
+                    return { ...course, ranking };
+                })
+            );
         }
 
         const totalCourses = await Course.countDocuments(query);
@@ -233,28 +266,13 @@ export async function getCourses({
             totalCourses
         };
     } catch (error: any) {
+        console.error(error);
         throw new Error(`Failed to fetch courses: ${error.message}`);
     }
-}
+};
 
-// Get courses created by a specific user
-export async function getUserCourses(userId: string) {
-    try {
-        await connectToDB();
 
-        const courses = await Course.find({ creator_id: userId })
-            .populate('creator_id')
-            .populate('ranking')
-            .lean();
-
-        return courses.map(serializeCourse);
-    } catch (error: any) {
-        throw new Error(`Failed to fetch user courses: ${error.message}`);
-    }
-}
-
-// Fork a course
-export async function forkCourse({
+export const forkCourse = async ({
     originalCourseId,
     newCourseId,
     creator_id
@@ -262,9 +280,13 @@ export async function forkCourse({
     originalCourseId: string;
     newCourseId: string;
     creator_id: string;
-}) {
+}) => {
     try {
         await connectToDB();
+
+        if (!originalCourseId || !newCourseId || !creator_id) {
+            throw new Error("Original course ID, new course ID, and creator ID are required");
+        }
 
         const originalCourse = await Course.findById(originalCourseId);
         if (!originalCourse) {
@@ -272,7 +294,6 @@ export async function forkCourse({
         }
 
         const forkedCourse = await Course.create({
-            _id: newCourseId,
             name: `${originalCourse.name} (Forked)`,
             description: originalCourse.description,
             background: originalCourse.background,
@@ -284,116 +305,122 @@ export async function forkCourse({
             forkedFrom: originalCourseId
         });
 
-        // Initialize ranking for forked course
         await CourseRanking.create({
-            _id: `${newCourseId}_ranking`,
             creator_id,
-            course_id: newCourseId,
+            course_id: forkedCourse._id,
         });
 
         revalidatePath("/courses");
         return { 
             success: true, 
             message: "Course forked successfully",
-            course: forkedCourse 
+            course: serializeCourse(forkedCourse)
         };
     } catch (error: any) {
+        console.error(error);
         throw new Error(`Failed to fork course: ${error.message}`);
     }
-}
+};
 
-// Delete a course
-export async function deleteCourse(courseId: string) {
+export const deleteCourse = async (courseId: string) => {
     try {
         await connectToDB();
 
-        // Delete the course
+        if (!courseId) {
+            return { success: false, message: "Course ID is required" };
+        }
+
         const deletedCourse = await Course.findByIdAndDelete(courseId);
         if (!deletedCourse) {
             return { success: false, message: "Course not found" };
         }
 
-        // Delete associated ranking
-        await CourseRanking.findByIdAndDelete(`${courseId}_ranking`);
+        await CourseRanking.findOneAndDelete({ course_id: courseId });
 
         revalidatePath("/courses");
         return { success: true, message: "Course deleted successfully" };
     } catch (error: any) {
+        console.error(error);
         return { 
             success: false, 
             message: error.message || "Failed to delete course" 
         };
     }
-}
+};
 
-// Update course ranking
-export async function updateCourseRanking({
+export const updateCourseRanking = async ({
     courseId,
     isUpvote
 }: {
     courseId: string;
     isUpvote: boolean;
-}): Promise<{ success: boolean; message: string }> {
+}): Promise<{ success: boolean; message: string }> => {
     try {
         await connectToDB();
 
-        const rankingId = `${courseId}_ranking`;
-        const ranking = await CourseRanking.findById(rankingId);
+        if (!courseId) {
+            return { success: false, message: "Course ID is required" };
+        }
+
+        const ranking = await CourseRanking.findOne({ course_id: courseId });
 
         if (!ranking) {
             return { success: false, message: "Course ranking not found" };
         }
 
-        // Update votes
         if (isUpvote) {
             ranking.upvotes += 1;
         } else {
             ranking.downvotes += 1;
         }
 
-        // Update Elo score (simple calculation - can be made more sophisticated)
         ranking.eloScore = ranking.upvotes - ranking.downvotes;
-
         await ranking.save();
 
         revalidatePath("/courses");
         return { success: true, message: "Course ranking updated successfully" };
     } catch (error: any) {
+        console.error(error);
         return {
             success: false,
             message: error.message || "Failed to update course ranking"
         };
     }
-}
+};
 
-// Get top rated courses
-export async function getTopRatedCourses(limit: number = 10) {
+export const getTopRatedCourses = async (limit: number = 10) => {
     try {
         await connectToDB();
 
         const rankings = await CourseRanking.find()
             .sort({ eloScore: -1 })
             .limit(limit)
-            .populate({
-                path: 'course_id',
-                populate: {
-                    path: 'creator_id'
-                }
-            });
+            .lean();
 
-        return rankings.map(ranking => ranking.course_id);
+        const courses = await Promise.all(
+            rankings.map(async (ranking) => {
+                const course = await Course.findById(ranking.course_id).lean();
+                return course ? { ...course, ranking } : null;
+            })
+        );
+
+        return courses.filter(course => course !== null).map(serializeCourse);
     } catch (error: any) {
+        console.error(error);
         throw new Error(`Failed to fetch top rated courses: ${error.message}`);
     }
-}
+};
 
-// Get user's course statistics
-export async function getUserCourseStats(userId: string) {
+export const getUserCourseStats = async (userId: string) => {
     try {
         await connectToDB();
 
+        if (!userId) {
+            throw new Error('User ID is required');
+        }
+
         const stats = await Course.aggregate([
-            { $match: { creator_id: new mongoose.Types.ObjectId(userId) } },
+            { $match: { creator_id: userId } },
             {
                 $group: {
                     _id: null,
@@ -408,7 +435,6 @@ export async function getUserCourseStats(userId: string) {
             }
         ]);
 
-        // Get total upvotes and downvotes from course rankings
         const rankings = await CourseRanking.aggregate([
             {
                 $lookup: {
@@ -420,7 +446,7 @@ export async function getUserCourseStats(userId: string) {
             },
             {
                 $match: {
-                    'course.creator_id': new mongoose.Types.ObjectId(userId)
+                    'course.creator_id': userId
                 }
             },
             {
@@ -450,17 +476,21 @@ export async function getUserCourseStats(userId: string) {
             })
         };
     } catch (error: any) {
+        console.error(error);
         throw new Error(`Failed to fetch user course statistics: ${error.message}`);
     }
-}
+};
 
-// Get user's top performing courses
-export async function getUserTopCourses(userId: string, limit: number = 5) {
+export const getUserTopCourses = async (userId: string, limit: number = 5) => {
     try {
         await connectToDB();
 
+        if (!userId) {
+            throw new Error('User ID is required');
+        }
+
         const topCourses = await Course.aggregate([
-            { $match: { creator_id: new mongoose.Types.ObjectId(userId) } },
+            { $match: { creator_id: userId } },
             {
                 $lookup: {
                     from: 'courserankings',
@@ -469,34 +499,41 @@ export async function getUserTopCourses(userId: string, limit: number = 5) {
                     as: 'ranking'
                 }
             },
-            { $unwind: '$ranking' },
+            { $unwind: { path: '$ranking', preserveNullAndEmptyArrays: true } },
             { $sort: { 'ranking.eloScore': -1 } },
             { $limit: limit }
         ]);
 
-        // Populate creator_id since aggregate doesn't support populate
-        await Course.populate(topCourses, { path: 'creator_id' });
-
         return topCourses.map(serializeCourse);
     } catch (error: any) {
+        console.error(error);
         throw new Error(`Failed to fetch user's top courses: ${error.message}`);
     }
-}
+};
 
-// Get user's recent course activity
-export async function getUserRecentActivity(userId: string, limit: number = 10) {
+export const getUserRecentActivity = async (userId: string, limit: number = 10) => {
     try {
         await connectToDB();
 
+        if (!userId) {
+            throw new Error('User ID is required');
+        }
+
         const recentActivity = await Course.find({ creator_id: userId })
-            .populate('creator_id')
-            .populate('ranking')
             .sort({ updatedAt: -1 })
             .limit(limit)
             .lean();
 
-        return recentActivity.map(serializeCourse);
+        const coursesWithRankings = await Promise.all(
+            recentActivity.map(async (course) => {
+                const ranking = await CourseRanking.findOne({ course_id: course._id }).lean();
+                return { ...course, ranking };
+            })
+        );
+
+        return coursesWithRankings.map(serializeCourse);
     } catch (error: any) {
+        console.error(error);
         throw new Error(`Failed to fetch user's recent activity: ${error.message}`);
     }
-}
+};
