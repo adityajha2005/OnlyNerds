@@ -26,11 +26,11 @@ import { useState } from "react";
 import { useMetaMaskStore } from "@/lib/stores/metamask-store";
 
 const routes = [
-  {
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    href: "/dashboard",
-  },
+  // {
+  //   label: "Dashboard",
+  //   icon: LayoutDashboard,
+  //   href: "/dashboard",
+  // },
   {
     label: "Courses",
     icon: BookOpen,
