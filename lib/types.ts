@@ -20,6 +20,7 @@ export interface Course {
     _id: string;
     name: string;
     description?: string;
+    background?: string;
     creator_id: string;
     isPublic: boolean;
     categories: Category[];

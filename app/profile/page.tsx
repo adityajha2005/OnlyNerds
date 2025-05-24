@@ -26,12 +26,13 @@ export default function ProfilePage() {
     }
   });
 
-  // Mock courses data with ranking - replace with actual API call
+  // Mock courses data with ranking and background images - replace with actual API call
   const [courses] = useState<CourseWithRanking[]>([
     {
       _id: '1',
       name: 'Introduction to Web3',
       description: 'Learn the basics of Web3 development',
+      background: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=2832&auto=format&fit=crop',
       creator_id: user._id || '',
       isPublic: true,
       categories: ['Web3'],
@@ -53,6 +54,7 @@ export default function ProfilePage() {
       _id: '2',
       name: 'Advanced AI/ML Concepts',
       description: 'Deep dive into AI and Machine Learning',
+      background: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=2832&auto=format&fit=crop',
       creator_id: user._id || '',
       isPublic: true,
       categories: ['AI/ML'],
@@ -295,54 +297,70 @@ export default function ProfilePage() {
                 {sortedCourses.map((course) => (
                   <div
                     key={course._id}
-                    className="p-6 rounded-lg border border-white/10 hover:border-white/20 transition-colors"
+                    className="group relative rounded-lg border border-white/10 hover:border-white/20 transition-all overflow-hidden"
                   >
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-xl font-semibold text-white">{course.name}</h3>
-                      <Badge className={getDifficultyColor(course.difficulty)}>
+                    {/* Course Background Image */}
+                    <div className="relative h-48 w-full overflow-hidden">
+                      <Image
+                        src={course.background || '/default-course-bg.jpg'}
+                        alt={course.name}
+                        fill
+                        className="object-cover transition-transform group-hover:scale-105"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20" />
+                      <Badge 
+                        className={`${getDifficultyColor(course.difficulty)} absolute top-4 right-4`}
+                      >
                         {course.difficulty}
                       </Badge>
                     </div>
-                    <p className="text-white/60 mb-4 line-clamp-2">{course.description}</p>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {course.categories.map((category) => (
-                        <Badge key={category} className={getCategoryColor(category)}>
-                          {category}
-                        </Badge>
-                      ))}
-                    </div>
-                    
-                    {/* Ranking Information */}
-                    <div className="border-t border-white/10 pt-4 mt-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <FaThumbsUp className="text-green-500" />
-                            <span className="text-white">{course.ranking?.upvotes || 0}</span>
+
+                    {/* Course Content */}
+                    <div className="p-6">
+                      <h3 className="text-xl font-semibold text-white mb-2">{course.name}</h3>
+                      <p className="text-white/60 mb-4 line-clamp-2">{course.description}</p>
+                      
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {course.categories.map((category) => (
+                          <Badge key={category} className={getCategoryColor(category)}>
+                            {category}
+                          </Badge>
+                        ))}
+                      </div>
+
+                      {/* Ranking Information */}
+                      <div className="border-t border-white/10 pt-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <FaThumbsUp className="text-green-500" />
+                              <span className="text-white">{course.ranking?.upvotes || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <FaThumbsDown className="text-red-500" />
+                              <span className="text-white">{course.ranking?.downvotes || 0}</span>
+                            </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <FaThumbsDown className="text-red-500" />
-                            <span className="text-white">{course.ranking?.downvotes || 0}</span>
+                            <TbTrophy className={getEloScoreColor(course.ranking?.eloScore || 0)} />
+                            <span className={`font-semibold ${getEloScoreColor(course.ranking?.eloScore || 0)}`}>
+                              {course.ranking?.eloScore || 0}
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <TbTrophy className={getEloScoreColor(course.ranking?.eloScore || 0)} />
-                          <span className={`font-semibold ${getEloScoreColor(course.ranking?.eloScore || 0)}`}>
-                            {course.ranking?.eloScore || 0}
-                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex justify-between items-center mt-4">
-                      <span className="text-white/40 text-sm">
-                        Created {new Date(course.createdAt).toLocaleDateString()}
-                      </span>
-                      {!course.isOriginal && (
-                        <Badge variant="outline" className="text-white/60 border-white/20">
-                          Forked
-                        </Badge>
-                      )}
+                      <div className="flex justify-between items-center mt-4">
+                        <span className="text-white/40 text-sm">
+                          Created {new Date(course.createdAt).toLocaleDateString()}
+                        </span>
+                        {!course.isOriginal && (
+                          <Badge variant="outline" className="text-white/60 border-white/20">
+                            Forked
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
