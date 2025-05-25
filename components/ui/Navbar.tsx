@@ -134,7 +134,7 @@ export function Navbar() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-x-2 border-primary text-primary hover:bg-primary/10 funnel-font"
+                    className="gap-x-2 border-primary text-primary hover:bg-white/3 funnel-font"
                   >
                     <Wallet className="w-4 h-4" />
                     {`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}
@@ -202,7 +202,7 @@ export function Navbar() {
                 <div className="mt-2">
                   <Link
                     href="/profile"
-                    className="text-sm funnel-font flex items-center gap-x-2 py-2 px-3 rounded-md transition-colors hover:bg-white/10 text-zinc-400"
+                    className="text-sm funnel-font flex items-center gap-x-2 py-2 px-3 rounded-md transition-colors hover:bg-white text-zinc-400"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <User className="w-4 h-4" />
