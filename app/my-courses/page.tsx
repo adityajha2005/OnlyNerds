@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CourseWithRanking, Category, Difficulty, Course } from '@/lib/types';
+import { useState, useEffect, useCallback } from 'react';
+import { CourseWithRanking, Category, Difficulty } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -32,7 +32,7 @@ interface CreateCourseModalProps {
   children: React.ReactNode;
   onCourseCreated?: () => void;
   currentUserId: string;
-  editingCourse?: Course; // Add this prop for editing
+  editingCourse?: CourseWithRanking; // Add this prop for editing
   open?: boolean; // Add this for external control
   onOpenChange?: (open: boolean) => void; // Add this for external control
 }
@@ -333,7 +333,7 @@ function CreateCourseModal({
 
 export default function MyCoursesPage() {
   const router = useRouter()
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<CourseWithRanking[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'all'>('all');
@@ -343,7 +343,7 @@ export default function MyCoursesPage() {
 
   // State for edit modal
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [editingCourse, setEditingCourse] = useState<CourseWithRanking | null>(null);
 
   // Get wallet address from localStorage
   const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -358,27 +358,27 @@ export default function MyCoursesPage() {
   const categories: Category[] = ['Web3', 'AI/ML', 'Full Stack Development', 'Marketing', 'Designs'];
   const difficulties: Difficulty[] = ['Beginner', 'Intermediate', 'Advanced'];
 
-  useEffect(() => {
-    if (currentUserId) {
-      fetchUserCourses();
-    }
-  }, [currentUserId]);
-
-  const fetchUserCourses = async () => {
+  const fetchUserCourses = useCallback(async () => {
     try {
       setLoading(true);
       const userCourses = await getCourseByCreatorId(currentUserId);
       if(userCourses){
-        setCourses(userCourses.filter(course => course !== null));
+        setCourses(userCourses);
       }
     } catch (error) {
       console.error('Failed to fetch user courses:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUserId]);
 
-  const handleEditCourse = (course: Course) => {
+  useEffect(() => {
+    if (currentUserId) {
+      fetchUserCourses();
+    }
+  }, [currentUserId, fetchUserCourses]);
+
+  const handleEditCourse = (course: CourseWithRanking) => {
     setEditingCourse(course);
     setEditModalOpen(true);
   };

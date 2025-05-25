@@ -28,7 +28,7 @@ const moduleSchema = new mongoose.Schema({
             },
             message: 'Please enter a valid URL'
         }
-    }], 
+    }]
 }, { 
     timestamps: true,
 });

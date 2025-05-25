@@ -11,7 +11,7 @@ interface CreateCourseParams {
     background?: string;
     creator_id: string;
     isPublic?: boolean;
-    categories: string[];
+    categories: string[] | null;
     difficulty: "Beginner" | "Intermediate" | "Advanced";
     isOriginal?: boolean;
     forkedFrom?: string;
@@ -24,12 +24,18 @@ interface UpdateCourseParams extends CreateCourseParams {
 // Helper function to serialize MongoDB document
 const serializeCourse = (course: any) => {
     if (!course) return null;
+    
+    // Handle populated creator_id field
+    const creatorId = typeof course.creator_id === 'object' 
+        ? course.creator_id._id?.toString()
+        : course.creator_id?.toString();
+
     return {
-        _id: course._id.toString(),
+        _id: course._id?.toString(),
         name: course.name,
         description: course.description,
         background: course.background,
-        creator_id: course.creator_id.toString(),
+        creator_id: creatorId,
         isPublic: course.isPublic,
         categories: course.categories,
         difficulty: course.difficulty,
@@ -38,14 +44,14 @@ const serializeCourse = (course: any) => {
         createdAt: course.createdAt?.toISOString(),
         updatedAt: course.updatedAt?.toISOString(),
         ranking: course.ranking ? {
-            _id: course.ranking._id.toString(),
-            creator_id: course.ranking.creator_id.toString(),
-            upvotes: course.ranking.upvotes,
-            downvotes: course.ranking.downvotes,
-            eloScore: course.ranking.eloScore,
+            _id: course.ranking._id?.toString(),
+            creator_id: course.ranking.creator_id?.toString(),
+            upvotes: course.ranking.upvotes || 0,
+            downvotes: course.ranking.downvotes || 0,
+            eloScore: course.ranking.eloScore || 0,
             createdAt: course.ranking.createdAt?.toISOString(),
             updatedAt: course.ranking.updatedAt?.toISOString()
-        } : null
+        } : undefined
     };
 };
 
@@ -151,17 +157,24 @@ export const getCourseByCreatorId = async (creator_id: string) => {
         await connectToDB();
 
         if (!creator_id) {
-            throw new Error('Course ID is required');
+            throw new Error('Creator ID is required');
         }
 
-        const courses= await Course.find({creator_id :creator_id })
+        const coursesData = await Course.find({ creator_id })
             .lean();
 
+        // Get rankings for each course
+        const courses = await Promise.all(
+            coursesData.map(async (course) => {
+                const ranking = await CourseRanking.findOne({ course_id: course._id }).lean();
+                return { ...course, ranking };
+            })
+        );
 
-        return courses;
+        return courses.map(serializeCourse).filter(course => course !== null);
     } catch (error: any) {
         console.error(error);
-        throw new Error(`Failed to fetch course: ${error.message}`);
+        throw new Error(`Failed to fetch courses: ${error.message}`);
     }
 };
 
@@ -170,26 +183,28 @@ export const getCourseById = async (courseId: string) => {
         await connectToDB();
 
         if (!courseId) {
-            throw new Error('Course ID is required');
+            return null;
         }
 
-        const course = await Course.findById(courseId)
-            .populate('creator_id')
-            .populate('forkedFrom')
-            .lean();
+        // First find the course without population
+        const course = await Course.findById(courseId).lean();
         
+        // If no course found, return null early
         if (!course) {
-            throw new Error("Course not found");
+            return null;
         }
 
         // Get course ranking
-        const ranking = await CourseRanking.findOne({ course_id: courseId }).lean();
-        const courseWithRanking = { ...course, ranking };
+        const ranking = await CourseRanking.findOne({ 
+            course_id: courseId 
+        }).lean();
 
+        // Combine course with ranking and serialize
+        const courseWithRanking = { ...course, ranking: ranking || null };
         return serializeCourse(courseWithRanking);
     } catch (error: any) {
-        console.error(error);
-        throw new Error(`Failed to fetch course: ${error.message}`);
+        console.error('Error in getCourseById:', error);
+        return null;
     }
 };
 

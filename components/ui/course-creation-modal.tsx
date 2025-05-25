@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,8 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
-import { Category, Difficulty } from '@/lib/types';
-import { createCourse } from '@/lib/actions/course.actions';
+import { Category, Difficulty, CourseWithRanking } from '@/lib/types';
+import { createCourse, updateCourse } from '@/lib/actions/course.actions';
 import { FaPlus } from 'react-icons/fa6';
 import { TimerResetIcon } from 'lucide-react';
 
@@ -23,10 +23,20 @@ interface CreateCourseModalProps {
   children: React.ReactNode;
   onCourseCreated?: () => void;
   currentUserId: string;
+  editingCourse?: CourseWithRanking;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function CreateCourseModal({ children, onCourseCreated, currentUserId }: CreateCourseModalProps) {
-  const [open, setOpen] = useState(false);
+export function CreateCourseModal({ 
+  children, 
+  onCourseCreated, 
+  currentUserId, 
+  editingCourse,
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange
+}: CreateCourseModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -37,12 +47,28 @@ export function CreateCourseModal({ children, onCourseCreated, currentUserId }: 
     selectedCategories: [] as Category[]
   });
 
+  // Use external open state if provided, otherwise use internal state
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = externalOnOpenChange || setInternalOpen;
+
+  // Populate form data when editing course changes
+  useEffect(() => {
+    if (editingCourse) {
+      setFormData({
+        name: editingCourse.name,
+        description: editingCourse.description || '',
+        background: editingCourse.background || '',
+        difficulty: editingCourse.difficulty,
+        isPublic: editingCourse.isPublic,
+        selectedCategories: editingCourse.categories
+      });
+    } else {
+      resetForm();
+    }
+  }, [editingCourse]);
+
   const categories: Category[] = ['Web3', 'AI/ML', 'Full Stack Development', 'Marketing', 'Designs'];
   const difficulties: Difficulty[] = ['Beginner', 'Intermediate', 'Advanced'];
-
-  const generateCourseId = () => {
-    return `course_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  };
 
   const handleCategoryToggle = (category: Category) => {
     setFormData(prev => ({
@@ -75,30 +101,46 @@ export function CreateCourseModal({ children, onCourseCreated, currentUserId }: 
     try {
       setLoading(true);
       
-      const courseId = generateCourseId();
-      const result = await createCourse({
-        courseId,
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        background: formData.background.trim() || undefined,
-        creator_id: currentUserId,
-        isPublic: formData.isPublic,
-        categories: formData.selectedCategories,
-        difficulty: formData.difficulty as Difficulty,
-        isOriginal: true
-      });
+      let result;
+      if (editingCourse) {
+        // Update existing course
+        result = await updateCourse({
+          courseId: editingCourse._id,
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          background: formData.background.trim() || undefined,
+          creator_id: currentUserId,
+          isPublic: formData.isPublic,
+          categories: formData.selectedCategories,
+          difficulty: formData.difficulty as Difficulty,
+          isOriginal: editingCourse.isOriginal,
+          forkedFrom: editingCourse.forkedFrom
+        });
+      } else {
+        // Create new course
+        result = await createCourse({
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          background: formData.background.trim() || undefined,
+          creator_id: currentUserId,
+          isPublic: formData.isPublic,
+          categories: formData.selectedCategories,
+          difficulty: formData.difficulty as Difficulty,
+          isOriginal: true
+        });
+      }
 
       if (result.success) {
         setOpen(false);
         resetForm();
         onCourseCreated?.();
-        alert('Course created successfully!');
+        alert(`Course ${editingCourse ? 'updated' : 'created'} successfully!`);
       } else {
-        alert(result.message || 'Failed to create course');
+        alert(result.message || `Failed to ${editingCourse ? 'update' : 'create'} course`);
       }
     } catch (error) {
-      console.error('Failed to create course:', error);
-      alert('Failed to create course');
+      console.error(`Failed to ${editingCourse ? 'update' : 'create'} course:`, error);
+      alert(`Failed to ${editingCourse ? 'update' : 'create'} course`);
     } finally {
       setLoading(false);
     }
@@ -126,7 +168,9 @@ export function CreateCourseModal({ children, onCourseCreated, currentUserId }: 
       </DialogTrigger>
       <DialogContent className="bg-black border-white/20 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Create New Course</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">
+            {editingCourse ? 'Edit Course' : 'Create New Course'}
+          </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -261,7 +305,10 @@ export function CreateCourseModal({ children, onCourseCreated, currentUserId }: 
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               disabled={loading}
             >
-              {loading ? 'Creating...' : 'Create Course'}
+              {loading 
+                ? (editingCourse ? 'Updating...' : 'Creating...') 
+                : (editingCourse ? 'Update Course' : 'Create Course')
+              }
             </Button>
           </div>
         </form>

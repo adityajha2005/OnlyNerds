@@ -3,6 +3,58 @@
 import { connectToDB } from "@/lib/mongoose";
 import Module from "@/lib/model/module.model";
 import { revalidatePath } from "next/cache";
+import { Document, Types } from 'mongoose';
+
+interface ModuleDocument extends Document {
+  _id: string;
+  course_id: string;
+  name: string;
+  content: string;
+  media: string[];
+  index: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ModuleData {
+  _id: string;
+  course_id: string;
+  name: string;
+  content: string;
+  media: string[];
+  index: number;
+  createdAt: Date;
+  updatedAt: Date;
+  __v: number;
+}
+
+interface RawModule {
+  _id: Types.ObjectId;
+  course_id: string;
+  name: string;
+  content: string;
+  media: string[];
+  index: number;
+  createdAt: Date;
+  updatedAt: Date;
+  __v: number;
+}
+
+interface CreateModuleParams {
+  course_id: string;
+  name: string;
+  content: string;
+  media?: string[];
+  index: number;
+}
+
+interface UpdateModuleParams {
+  moduleId: string;
+  name: string;
+  content: string;
+  media?: string[];
+  index: number;
+}
 
 export const createModule = async ({
   course_id,
@@ -10,20 +62,11 @@ export const createModule = async ({
   content,
   media = [],
   index
-}: {
-  course_id: string;
-  name: string;
-  content: string;
-  media?: string[];
-  index: number;
-}) => {
+}: CreateModuleParams) => {
   try {
     await connectToDB();
 
-    const moduleId = `module_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
     const newModule = new Module({
-      _id: moduleId,
       course_id,
       name: name.trim(),
       content: content.trim(),
@@ -31,12 +74,24 @@ export const createModule = async ({
       index
     });
 
-    await newModule.save();
+    const savedModule = await newModule.save();
+    
+    // Convert the module to a plain object and ensure proper type conversion
+    const moduleResponse = {
+      _id: savedModule._id.toString(),
+      course_id: savedModule.course_id,
+      name: savedModule.name,
+      content: savedModule.content,
+      media: savedModule.media || [],
+      index: savedModule.index,
+      createdAt: savedModule.createdAt?.toISOString(),
+      updatedAt: savedModule.updatedAt?.toISOString()
+    };
 
     revalidatePath(`/my-courses/${course_id}`);
     revalidatePath(`/courses/${course_id}`);
 
-    return { success: true, module: newModule };
+    return { success: true, module: moduleResponse };
   } catch (error: any) {
     console.error("Error creating module:", error);
     return { 
@@ -50,17 +105,24 @@ export const getModulesByCourseId = async (courseId: string) => {
   try {
     await connectToDB();
 
-    const modules = await Module.find({ course_id: courseId })
+    const rawModules = await Module.find({ course_id: courseId })
       .sort({ index: 1 })
-      .lean();
+      .lean() as RawModule[];
 
-    return modules.map(module => ({
-      ...module,
+    // Convert the raw modules to the expected format
+    const modules = rawModules.map(module => ({
       _id: module._id.toString(),
       course_id: module.course_id,
+      name: module.name,
+      content: module.content,
+      media: module.media || [],
+      index: module.index,
       createdAt: module.createdAt?.toISOString(),
       updatedAt: module.updatedAt?.toISOString(),
+      __v: module.__v
     }));
+
+    return modules;
   } catch (error: any) {
     console.error("Error fetching modules:", error);
     throw new Error(`Failed to fetch modules: ${error.message}`);
@@ -73,13 +135,7 @@ export const updateModule = async ({
   content,
   media = [],
   index
-}: {
-  moduleId: string;
-  name: string;
-  content: string;
-  media?: string[];
-  index: number;
-}) => {
+}: UpdateModuleParams) => {
   try {
     await connectToDB();
 
@@ -93,16 +149,28 @@ export const updateModule = async ({
         updatedAt: new Date()
       },
       { new: true }
-    );
+    ).lean() as unknown as ModuleDocument;
 
     if (!updatedModule) {
       return { success: false, message: "Module not found" };
     }
 
+    // Convert to plain object with proper type conversion
+    const moduleResponse = {
+      _id: updatedModule._id.toString(),
+      course_id: updatedModule.course_id,
+      name: updatedModule.name,
+      content: updatedModule.content,
+      media: updatedModule.media || [],
+      index: updatedModule.index,
+      createdAt: updatedModule.createdAt?.toISOString(),
+      updatedAt: updatedModule.updatedAt?.toISOString()
+    };
+
     revalidatePath(`/my-courses/${updatedModule.course_id}`);
     revalidatePath(`/courses/${updatedModule.course_id}`);
 
-    return { success: true, module: updatedModule };
+    return { success: true, module: moduleResponse };
   } catch (error: any) {
     console.error("Error updating module:", error);
     return { 
@@ -116,14 +184,14 @@ export const deleteModule = async (moduleId: string) => {
   try {
     await connectToDB();
 
-    const deletedModule = await Module.findByIdAndDelete(moduleId);
+    const module = await Module.findByIdAndDelete(moduleId);
 
-    if (!deletedModule) {
+    if (!module) {
       return { success: false, message: "Module not found" };
     }
 
-    revalidatePath(`/my-courses/${deletedModule.course_id}`);
-    revalidatePath(`/courses/${deletedModule.course_id}`);
+    revalidatePath(`/my-courses/${module.course_id}`);
+    revalidatePath(`/courses/${module.course_id}`);
 
     return { success: true };
   } catch (error: any) {
@@ -139,18 +207,21 @@ export const getModuleById = async (moduleId: string) => {
   try {
     await connectToDB();
 
-    const module = await Module.findById(moduleId).lean();
+    const module = await Module.findById(moduleId).lean() as unknown as ModuleDocument;
 
     if (!module) {
-      throw new Error("Module not found");
+      return null;
     }
 
     return {
-      ...module,
       _id: module._id.toString(),
       course_id: module.course_id,
+      name: module.name,
+      content: module.content,
+      media: module.media || [],
+      index: module.index,
       createdAt: module.createdAt?.toISOString(),
-      updatedAt: module.updatedAt?.toISOString(),
+      updatedAt: module.updatedAt?.toISOString()
     };
   } catch (error: any) {
     console.error("Error fetching module:", error);
@@ -162,11 +233,12 @@ export const reorderModules = async (courseId: string, moduleOrders: { moduleId:
   try {
     await connectToDB();
 
-    const updatePromises = moduleOrders.map(({ moduleId, index }) =>
-      Module.findByIdAndUpdate(moduleId, { index, updatedAt: new Date() })
+    // Update each module's index
+    await Promise.all(
+      moduleOrders.map(({ moduleId, index }) =>
+        Module.findByIdAndUpdate(moduleId, { index })
+      )
     );
-
-    await Promise.all(updatePromises);
 
     revalidatePath(`/my-courses/${courseId}`);
     revalidatePath(`/courses/${courseId}`);
@@ -186,33 +258,46 @@ export const duplicateModule = async (moduleId: string) => {
     await connectToDB();
 
     const originalModule = await Module.findById(moduleId);
+
     if (!originalModule) {
       return { success: false, message: "Module not found" };
     }
 
-    const newModuleId = `module_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Find the highest index in the course and add 1
-    const highestIndexModule = await Module.findOne({ course_id: originalModule.course_id })
-      .sort({ index: -1 });
-    
-    const newIndex = (highestIndexModule?.index || 0) + 1;
-
-    const duplicatedModule = new Module({
-      _id: newModuleId,
+    const newModule = new Module({
       course_id: originalModule.course_id,
       name: `${originalModule.name} (Copy)`,
       content: originalModule.content,
-      media: [...originalModule.media],
-      index: newIndex
+      media: originalModule.media,
+      index: originalModule.index + 1
     });
 
-    await duplicatedModule.save();
+    const savedModule = await newModule.save();
+
+    // Update indices of all modules after this one
+    await Module.updateMany(
+      { 
+        course_id: originalModule.course_id, 
+        index: { $gt: originalModule.index } 
+      },
+      { $inc: { index: 1 } }
+    );
+
+    // Convert to plain object with proper type conversion
+    const moduleResponse = {
+      _id: savedModule._id.toString(),
+      course_id: savedModule.course_id,
+      name: savedModule.name,
+      content: savedModule.content,
+      media: savedModule.media || [],
+      index: savedModule.index,
+      createdAt: savedModule.createdAt?.toISOString(),
+      updatedAt: savedModule.updatedAt?.toISOString()
+    };
 
     revalidatePath(`/my-courses/${originalModule.course_id}`);
     revalidatePath(`/courses/${originalModule.course_id}`);
 
-    return { success: true, module: duplicatedModule };
+    return { success: true, module: moduleResponse };
   } catch (error: any) {
     console.error("Error duplicating module:", error);
     return { 

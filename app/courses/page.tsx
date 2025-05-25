@@ -90,7 +90,21 @@ export default function CoursesPage() {
 
       const response = await getCourses(params);
       
-      setCourses(response.courses);
+      // Ensure we have valid courses and convert dates
+      const validCourses = response.courses
+        .filter((course): course is NonNullable<typeof course> => course !== null)
+        .map(course => ({
+          ...course,
+          createdAt: new Date(course.createdAt),
+          updatedAt: new Date(course.updatedAt),
+          ranking: course.ranking ? {
+            ...course.ranking,
+            createdAt: new Date(course.ranking.createdAt),
+            updatedAt: new Date(course.ranking.updatedAt)
+          } : undefined
+        }));
+
+      setCourses(validCourses);
       setTotalPages(response.totalPages);
       setTotalCourses(response.totalCourses);
       
@@ -103,7 +117,7 @@ export default function CoursesPage() {
   };
 
   const handleCourseClick = (courseId: string) => {
-    router.push(`/my-courses/${courseId}`);
+    router.push(`/courses/${courseId}`);
   };
 
   const handlePageChange = (page: number) => {

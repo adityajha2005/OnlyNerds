@@ -3,35 +3,26 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { CourseWithRanking } from '@/lib/types';
-import { getCourseById, updateCourse } from '@/lib/actions/course.actions';
+import { getCourseById } from '@/lib/actions/course.actions';
 import { Navbar } from '@/components/ui/Navbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { FaThumbsUp, FaThumbsDown, FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa6';
+import { FaThumbsUp, FaThumbsDown, FaArrowLeft } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
-import { Edit3 } from 'lucide-react';
 import Image from 'next/image';
-import { CreateCourseModal } from '@/components/ui/course-creation-modal';
-import { ModuleEditor } from '@/components/ui/module-editor';
+import { ModuleViewer } from '@/components/ui/module-viewer';
+// import { ModuleViewer } from '@/components/ui/module-viewer';   
+
 
 export default function CoursePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const [course, setCourse] = useState<CourseWithRanking | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string>('');
-  const [editModalOpen, setEditModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Unwrap params using React.use()
   const { id } = use(params);
-
-  useEffect(() => {
-    const walletAddress = localStorage.getItem('walletAddress');
-    if (walletAddress) {
-      setCurrentUserId(walletAddress);
-    }
-  }, []);
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -51,6 +42,12 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           return;
         }
 
+        // Only show public courses
+        if (!courseData.isPublic) {
+          setError('This course is not available');
+          return;
+        }
+
         setCourse(courseData);
       } catch (error) {
         console.error('Error fetching course:', error);
@@ -62,13 +59,6 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
 
     fetchCourse();
   }, [id]);
-
-  // Verify course ownership
-  useEffect(() => {
-    if (course && currentUserId && course.creator_id !== currentUserId) {
-      router.push('/my-courses');
-    }
-  }, [course, currentUserId, router]);
 
   const getDifficultyColor = (difficulty: string) => {
     switch(difficulty) {
@@ -107,53 +97,6 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
     return 'text-white/60';
   };
 
-  const handleToggleVisibility = async () => {
-    if (!course) return;
-
-    try {
-      const result = await updateCourse({
-        courseId: course._id,
-        name: course.name,
-        description: course.description,
-        background: course.background,
-        creator_id: course.creator_id,
-        isPublic: !course.isPublic,
-        categories: course.categories,
-        difficulty: course.difficulty,
-        isOriginal: course.isOriginal,
-        forkedFrom: course.forkedFrom
-      });
-
-      if (result.success) {
-        setCourse(prev => prev ? { ...prev, isPublic: !prev.isPublic } : null);
-      } else {
-        alert(result.message);
-      }
-    } catch (error) {
-      console.error('Failed to update course visibility:', error);
-      alert('Failed to update course visibility');
-    }
-  };
-
-  const handleCourseUpdated = async () => {
-    if (!id) return;
-    
-    try {
-      setLoading(true);
-      const updatedCourse = await getCourseById(id);
-      if (updatedCourse) {
-        setCourse(updatedCourse);
-      } else {
-        setError('Failed to refresh course data');
-      }
-    } catch (error) {
-      console.error('Failed to refresh course:', error);
-      setError('Failed to refresh course data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -169,10 +112,10 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
         <Button
           variant="ghost"
           className="text-white hover:bg-white/10"
-          onClick={() => router.push('/my-courses')}
+          onClick={() => router.push('/courses')}
         >
           <FaArrowLeft className="mr-2" />
-          Back to My Courses
+          Back to Courses
         </Button>
       </div>
     );
@@ -187,47 +130,24 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           <Button
             variant="ghost"
             className="text-white hover:bg-white/10"
-            onClick={() => router.push('/my-courses')}
+            onClick={() => router.push('/courses')}
           >
             <FaArrowLeft className="mr-2" />
-            Back to My Courses
+            Back to Courses
           </Button>
 
           {/* Header */}
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-2">{course.name}</h1>
-              <div className="flex flex-wrap gap-2 mb-4">
-                <Badge className={getDifficultyColor(course.difficulty)}>
-                  {course.difficulty}
+          <div>
+            <h1 className="text-4xl font-bold text-white mb-2">{course.name}</h1>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <Badge className={getDifficultyColor(course.difficulty)}>
+                {course.difficulty}
+              </Badge>
+              {!course.isOriginal && (
+                <Badge variant="outline" className="text-white/60 border-white/20">
+                  Forked
                 </Badge>
-                {!course.isPublic && (
-                  <Badge className="bg-red-500/20 text-red-500">
-                    Private
-                  </Badge>
-                )}
-                {!course.isOriginal && (
-                  <Badge variant="outline" className="text-white/60 border-white/20">
-                    Forked
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="bg-black/50 border-white/20 text-white hover:bg-white/10"
-                onClick={handleToggleVisibility}
-              >
-                {course.isPublic ? <FaEyeSlash /> : <FaEye />}
-              </Button>
-              <Button
-                variant="outline"
-                className="bg-black/50 border-white/20 text-white hover:bg-white/10"
-                onClick={() => setEditModalOpen(true)}
-              >
-                <Edit3 />
-              </Button>
+              )}
             </div>
           </div>
 
@@ -269,12 +189,8 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                 </CardContent>
               </Card>
 
-              {/* Modules */}
-              <Card className="bg-black/50 border-white/10">
-                <CardContent className="p-6">
-                  <ModuleEditor isCreator={true} courseId={course._id} onModuleChange={handleCourseUpdated} />
-                </CardContent>
-              </Card>
+              {/* Course Modules */}
+              <ModuleViewer courseId={course._id} />
             </div>
 
             {/* Sidebar */}
@@ -317,10 +233,6 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                       <p className="text-white/60">Last Updated</p>
                       <p className="text-white">{new Date(course.updatedAt).toLocaleDateString()}</p>
                     </div>
-                    <div>
-                      <p className="text-white/60">Visibility</p>
-                      <p className="text-white">{course.isPublic ? 'Public' : 'Private'}</p>
-                    </div>
                     {course.forkedFrom && (
                       <div>
                         <p className="text-white/60">Forked From</p>
@@ -340,17 +252,6 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
       </div>
-
-      {/* Edit Modal
-      <CreateCourseModal
-        currentUserId={currentUserId}
-        onCourseCreated={handleCourseUpdated}
-        editingCourse={course}
-        open={editModalOpen}
-        onOpenChange={setEditModalOpen}
-      >
-        <div></div>
-      </CreateCourseModal> */}
     </div>
   );
 }

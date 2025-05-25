@@ -5,7 +5,7 @@ import { HeroSplineBackground } from "./HeroSplineBackground"
 import { ScreenshotSection } from "./ScreenshotSection"
 import { HeroContent } from "./HeroContent"
 import CoursesPage from "./courses-home"
-
+import { Navbar } from "./Navbar"
 const HeroSection = () => {
   const screenshotRef = useRef<HTMLDivElement>(null)
   const heroContentRef = useRef<HTMLDivElement>(null)
@@ -34,6 +34,7 @@ const HeroSection = () => {
 
   return (
     <div className="relative">
+      <Navbar />
       <div className="relative min-h-screen">
         <div className="absolute inset-0 z-0 pointer-events-auto">
           <HeroSplineBackground />
