@@ -14,12 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FaThumbsUp, FaThumbsDown, FaMagnifyingGlass, FaSpinner } from 'react-icons/fa6';
+import { FaThumbsUp, FaThumbsDown, FaMagnifyingGlass, FaSpinner, FaCodeBranch } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { getCourses } from '@/lib/actions/course.actions';
+import { getCourses, forkCourse } from '@/lib/actions/course.actions';
 import { Navbar } from '@/components/ui/Navbar';
 
 type SortOption = 'createdAt' | 'eloScore' | 'popular';
@@ -38,6 +38,8 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<CourseWithRanking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [forkingCourseId, setForkingCourseId] = useState<string | null>(null);
   
   // Filter and pagination state
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,6 +75,13 @@ export default function CoursesPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearchQuery, selectedCategory, selectedDifficulty, sortBy]);
+
+  useEffect(() => {
+    const walletAddress = localStorage.getItem('walletAddress');
+    if (walletAddress) {
+      setCurrentUserId(walletAddress);
+    }
+  }, []);
 
   const fetchCourses = async () => {
     try {
@@ -118,6 +127,37 @@ export default function CoursesPage() {
 
   const handleCourseClick = (courseId: string) => {
     router.push(`/courses/${courseId}`);
+  };
+
+  const handleForkCourse = async (e: React.MouseEvent, course: CourseWithRanking) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!currentUserId) {
+      alert('Please connect your wallet to fork this course');
+      return;
+    }
+
+    try {
+      setForkingCourseId(course._id);
+      const newCourseId = `course_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await forkCourse({
+        originalCourseId: course._id,
+        newCourseId,
+        creator_id: currentUserId
+      });
+
+      if (result.success && result.course) {
+        router.push(`/my-courses/${result.course._id}`);
+      } else {
+        alert(result.message || 'Failed to fork course');
+      }
+    } catch (error: any) {
+      console.error('Failed to fork course:', error);
+      alert(error.message || 'Failed to fork course');
+    } finally {
+      setForkingCourseId(null);
+    }
   };
 
   const handlePageChange = (page: number) => {
@@ -367,6 +407,27 @@ export default function CoursesPage() {
                       >
                         {course.difficulty}
                       </Badge>
+                      {currentUserId && currentUserId !== course.creator_id && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="absolute top-4 left-4 bg-black/50 border-white/20 text-white hover:bg-white/10"
+                          onClick={(e) => handleForkCourse(e, course)}
+                          disabled={forkingCourseId === course._id}
+                        >
+                          {forkingCourseId === course._id ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white mr-2"></div>
+                              Forking...
+                            </>
+                          ) : (
+                            <>
+                              <FaCodeBranch className="mr-2" />
+                              Fork
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
 
                     {/* Course Content */}

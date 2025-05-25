@@ -3,12 +3,12 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { CourseWithRanking } from '@/lib/types';
-import { getCourseById } from '@/lib/actions/course.actions';
+import { getCourseById, forkCourse } from '@/lib/actions/course.actions';
 import { Navbar } from '@/components/ui/Navbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { FaThumbsUp, FaThumbsDown, FaArrowLeft } from 'react-icons/fa6';
+import { FaThumbsUp, FaThumbsDown, FaArrowLeft, FaCodeBranch } from 'react-icons/fa6';
 import { TbTrophy } from 'react-icons/tb';
 import Image from 'next/image';
 import { ModuleViewer } from '@/components/ui/module-viewer';
@@ -19,10 +19,19 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const router = useRouter();
   const [course, setCourse] = useState<CourseWithRanking | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [forking, setForking] = useState(false);
 
   // Unwrap params using React.use()
   const { id } = use(params);
+
+  useEffect(() => {
+    const walletAddress = localStorage.getItem('walletAddress');
+    if (walletAddress) {
+      setCurrentUserId(walletAddress);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -97,6 +106,31 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
     return 'text-white/60';
   };
 
+  const handleForkCourse = async () => {
+    if (!course || !currentUserId) return;
+
+    try {
+      setForking(true);
+      const newCourseId = `course_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const result = await forkCourse({
+        originalCourseId: course._id,
+        newCourseId,
+        creator_id: currentUserId
+      });
+
+      if (result.success && result.course) {
+        router.push(`/my-courses/${result.course._id}`);
+      } else {
+        alert(result.message || 'Failed to fork course');
+      }
+    } catch (error: any) {
+      console.error('Failed to fork course:', error);
+      alert(error.message || 'Failed to fork course');
+    } finally {
+      setForking(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -137,18 +171,40 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           </Button>
 
           {/* Header */}
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">{course.name}</h1>
-            <div className="flex flex-wrap gap-2 mb-4">
-              <Badge className={getDifficultyColor(course.difficulty)}>
-                {course.difficulty}
-              </Badge>
-              {!course.isOriginal && (
-                <Badge variant="outline" className="text-white/60 border-white/20">
-                  Forked
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2">{course.name}</h1>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <Badge className={getDifficultyColor(course.difficulty)}>
+                  {course.difficulty}
                 </Badge>
-              )}
+                {!course.isOriginal && (
+                  <Badge variant="outline" className="text-white/60 border-white/20">
+                    Forked
+                  </Badge>
+                )}
+              </div>
             </div>
+            {currentUserId && currentUserId !== course.creator_id && (
+              <Button
+                variant="outline"
+                className="bg-black/50 border-white/20 text-white hover:bg-white/10"
+                onClick={handleForkCourse}
+                disabled={forking}
+              >
+                {forking ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                    Forking...
+                  </>
+                ) : (
+                  <>
+                    <FaCodeBranch className="mr-2" />
+                    Fork Course
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
           {/* Course Content */}
@@ -243,6 +299,12 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                         >
                           View Original Course
                         </Button>
+                      </div>
+                    )}
+                    {course.forkedBy && (
+                      <div>
+                        <p className="text-white/60">Forked By</p>
+                        <p className="text-white">{course.forkedBy}</p>
                       </div>
                     )}
                   </div>

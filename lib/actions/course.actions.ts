@@ -4,6 +4,8 @@ import { connectToDB } from "@/lib/mongoose";
 import Course from "@/lib/model/course.model";
 import CourseRanking from "@/lib/model/courseRanking.model";
 import { revalidatePath } from "next/cache";
+import Module from "@/lib/model/module.model";
+import Assessment from "@/lib/model/assessment.model";
 
 interface CreateCourseParams {
     name: string;
@@ -41,6 +43,7 @@ const serializeCourse = (course: any) => {
         difficulty: course.difficulty,
         isOriginal: course.isOriginal,
         forkedFrom: course.forkedFrom?.toString(),
+        forkedBy: course.forkedBy?.toString(),
         createdAt: course.createdAt?.toISOString(),
         updatedAt: course.updatedAt?.toISOString(),
         ranking: course.ranking ? {
@@ -308,22 +311,57 @@ export const forkCourse = async ({
             throw new Error("Original course not found");
         }
 
+        // Create the forked course
         const forkedCourse = await Course.create({
             name: `${originalCourse.name} (Forked)`,
             description: originalCourse.description,
             background: originalCourse.background,
             creator_id,
-            isPublic: true,
+            isPublic: false,
             categories: originalCourse.categories,
             difficulty: originalCourse.difficulty,
             isOriginal: false,
-            forkedFrom: originalCourseId
+            forkedFrom: originalCourseId,
+            forkedBy: creator_id
         });
 
+        // Create course ranking
         await CourseRanking.create({
             creator_id,
             course_id: forkedCourse._id,
         });
+
+        // Get all modules from the original course
+        const originalModules = await Module.find({ course_id: originalCourseId }).sort({ index: 1 });
+
+        // Create new modules for the forked course
+        const moduleIdMap = new Map<string, string>(); // Map old module IDs to new module IDs
+        for (const originalModule of originalModules) {
+            const newModule = await Module.create({
+                course_id: forkedCourse._id,
+                name: originalModule.name,
+                content: originalModule.content,
+                media: originalModule.media,
+                index: originalModule.index
+            });
+            moduleIdMap.set(originalModule._id.toString(), newModule._id.toString());
+        }
+
+        // Get all assessments from the original course
+        const originalAssessments = await Assessment.find({ course_id: originalCourseId });
+
+        // Create new assessments for the forked course
+        for (const originalAssessment of originalAssessments) {
+            const newModuleId = moduleIdMap.get(originalAssessment.module_id);
+            if (newModuleId) {
+                await Assessment.create({
+                    module_id: newModuleId,
+                    course_id: forkedCourse._id,
+                    type: originalAssessment.type,
+                    questions: originalAssessment.questions
+                });
+            }
+        }
 
         revalidatePath("/courses");
         return { 

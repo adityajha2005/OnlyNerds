@@ -27,6 +27,7 @@ export interface Course {
     difficulty: Difficulty;
     isOriginal: boolean;
     forkedFrom?: string;
+    forkedBy?: string;
     createdAt: Date;
     updatedAt: Date;
 }

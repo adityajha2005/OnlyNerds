@@ -37,7 +37,8 @@ const courseSchema = new mongoose.Schema({
         required: true 
     },
     isOriginal: { type: Boolean, required: true, default: true },
-    forkedFrom: { type: String, ref: 'Course', required: false }
+    forkedFrom: { type: String, ref: 'Course', required: false },
+    forkedBy: { type: String, ref: 'User', required: false }
 }, { timestamps: true });
 
 courseSchema.index({ categories: 1 });  

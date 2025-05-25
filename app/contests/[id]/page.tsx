@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from "@/components/ui/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +28,7 @@ interface Contest {
 
 export default function ContestPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const contestId = use(Promise.resolve(params)).id;
+  const contestId = params.id;
   const { walletAddress, metaMaskIsConnected, initializeMetaMask } = useMetaMaskStore();
   const [contest, setContest] = useState<Contest | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
