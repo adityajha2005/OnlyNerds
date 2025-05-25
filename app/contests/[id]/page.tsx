@@ -28,7 +28,7 @@ interface Contest {
 
 export default function ContestPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const contestId = use(Promise.resolve(params)).id;
+  const contestId = params.id;
   const { walletAddress, metaMaskIsConnected, initializeMetaMask } = useMetaMaskStore();
   const [contest, setContest] = useState<Contest | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);

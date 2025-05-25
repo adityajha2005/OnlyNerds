@@ -24,6 +24,8 @@ import Image from 'next/image';
 import {deleteCourse, updateCourse, createCourse, getCourseByCreatorId } from '@/lib/actions/course.actions';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/ui/Navbar';
+import { ethers } from 'ethers';
+import { CreateManagerABI } from '../lib/abis';
 
 type SortOption = 'popular' | 'newest' | 'ranking';
 type ViewMode = 'all' | 'public' | 'private' | 'original' | 'forked';
@@ -103,6 +105,20 @@ function CreateCourseModal({
     });
   };
 
+  const handleOnChainCreateManager = async () => {
+    if (!window.ethereum) throw new Error('MetaMask not found');
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const contract = new ethers.Contract("0x75677c5c96c3BDFaf4E6502Fe1DA12338453A23d", CreateManagerABI, signer);
+    const tx = await contract.createCourse(
+      "Course Name",  // courseName
+      ethers.parseEther("0.0001"),  // 0.0001 ETH
+      0,  // category (Web3)
+      0   // level (Beginner)
+    );
+    await tx.wait();
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -132,6 +148,7 @@ function CreateCourseModal({
       } else {
         // Create new course
         const courseId = generateCourseId();
+        await handleOnChainCreateManager();
         result = await createCourse({
           name: formData.name.trim(),
           description: formData.description.trim(),

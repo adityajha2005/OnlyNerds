@@ -21,6 +21,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { getCourses } from '@/lib/actions/course.actions';
 import { Navbar } from '@/components/ui/Navbar';
+import { CreateManagerABI } from '../lib/abis';
+import { ethers } from 'ethers';
 
 type SortOption = 'createdAt' | 'eloScore' | 'popular';
 
@@ -115,6 +117,8 @@ export default function CoursesPage() {
       setLoading(false);
     }
   };
+
+
 
   const handleCourseClick = (courseId: string) => {
     router.push(`/courses/${courseId}`);

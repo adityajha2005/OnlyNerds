@@ -114,6 +114,8 @@ function ContestContent() {
     fetchContests();
   }, [metaMaskIsConnected, walletAddress]);
 
+  
+
   // Early return if not connected
   if (!metaMaskIsConnected || !walletAddress) {
     return (
