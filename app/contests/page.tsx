@@ -23,6 +23,12 @@ import { Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { ethers } from 'ethers';
 import CreateContestABI from '../lib/abis/CreateContest.json';
 
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 // Your contract address here
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTEST_CONTRACT_ADDRESS || '';
 
@@ -61,7 +67,7 @@ function ContestContent() {
 
   const getContract = async () => {
     if (!window.ethereum) throw new Error('MetaMask not found');
-    const provider = new ethers.BrowserProvider(window.ethereum);
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = await provider.getSigner();
     return new ethers.Contract(CONTRACT_ADDRESS, CreateContestABI, signer);
   };
@@ -467,4 +473,4 @@ export default function ContestPage() {
       <ContestContent />
     </Suspense>
   );
-} 
+}

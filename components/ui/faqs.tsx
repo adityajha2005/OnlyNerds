@@ -33,7 +33,7 @@ export default function FAQsTwo() {
     ]
 
     return (
-        <section className="py-8 md:py-12 bg-black">
+        <section className="py-8 md:py-12 bg-black mt-[-50px]">
             <div className="mx-auto max-w-5xl px-4 md:px-6">
                 <div className="mx-auto max-w-xl text-center">
                     <h2 className="text-balance text-3xl font-bold md:text-4xl lg:text-5xl text-white">Frequently Asked Questions</h2>

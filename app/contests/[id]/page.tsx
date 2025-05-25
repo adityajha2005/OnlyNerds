@@ -44,7 +44,7 @@ export default function ContestPage({ params }: { params: { id: string } }) {
 
   const getContract = async () => {
     if (!window.ethereum) throw new Error('MetaMask not found');
-    const provider = new ethers.BrowserProvider(window.ethereum);
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = await provider.getSigner();
     return new ethers.Contract(CONTRACT_ADDRESS, CreateContestABI, signer);
   };
@@ -279,6 +279,7 @@ export default function ContestPage({ params }: { params: { id: string } }) {
           </Card>
         </div>
       </div>
+
     </div>
   );
-} 
+}

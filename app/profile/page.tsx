@@ -12,7 +12,7 @@ import { TbTrophy } from 'react-icons/tb';
 import Image from 'next/image';
 import { useMetaMaskStore } from '@/lib/stores/metamask-store';
 import { updateUser, getUser, createUser, checkUserProfileComplete } from '@/lib/actions/user.actions';
-import { getUserCourses, getUserCourseStats, getUserTopCourses, getUserRecentActivity } from '@/lib/actions/course.actions';
+import { getCourseByCreatorId, getUserCourseStats, getUserTopCourses, getUserRecentActivity } from '@/lib/actions/course.actions';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -55,7 +55,6 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      
       try {
         // Try to fetch existing user data
         const userData = await getUser(walletAddress);
@@ -86,53 +85,29 @@ export default function ProfilePage() {
 
         // Fetch course-related data
         const [userCourses, stats, topPerforming, recent] = await Promise.all([
-          getUserCourses(walletAddress),
+          getCourseByCreatorId(walletAddress),
           getUserCourseStats(walletAddress),
           getUserTopCourses(walletAddress, 5),
           getUserRecentActivity(walletAddress, 10)
         ]);
 
-        // Map the serialized courses to CourseWithRanking type
-        const mapToCourseWithRanking = (course: any): CourseWithRanking => ({
-          _id: course._id,
-          name: course.name,
-          description: course.description || '',
-          background: course.background,
-          creator_id: course.creator_id,
-          isPublic: course.isPublic,
-          categories: course.categories,
-          difficulty: course.difficulty,
-          isOriginal: course.isOriginal,
-          forkedFrom: course.forkedFrom,
+        // Convert dates for each course
+        const convertDates = (course: any): CourseWithRanking => ({
+          ...course,
           createdAt: new Date(course.createdAt),
           updatedAt: new Date(course.updatedAt),
           ranking: course.ranking ? {
-            _id: course.ranking._id,
-            creator_id: course.ranking.creator_id,
-            upvotes: course.ranking.upvotes,
-            downvotes: course.ranking.downvotes,
-            eloScore: course.ranking.eloScore,
+            ...course.ranking,
             createdAt: new Date(course.ranking.createdAt),
             updatedAt: new Date(course.ranking.updatedAt)
           } : undefined
         });
 
-        const validUserCourses = (userCourses || [])
-          .filter((course): course is NonNullable<typeof course> => course !== null)
-          .map(mapToCourseWithRanking);
-        
-        const validTopCourses = (topPerforming || [])
-          .filter((course): course is NonNullable<typeof course> => course !== null)
-          .map(mapToCourseWithRanking);
-        
-        const validRecentCourses = (recent || [])
-          .filter((course): course is NonNullable<typeof course> => course !== null)
-          .map(mapToCourseWithRanking);
-
-        setCourses(validUserCourses);
+        // Process and set the courses
+        setCourses((userCourses || []).map(convertDates));
         setCourseStats(stats);
-        setTopCourses(validTopCourses);
-        setRecentActivity(validRecentCourses);
+        setTopCourses((topPerforming || []).map(convertDates));
+        setRecentActivity((recent || []).map(convertDates));
       } catch (error) {
         // If user doesn't exist, create a new one
         if ((error as Error).message.includes('User not found')) {
@@ -164,8 +139,10 @@ export default function ProfilePage() {
       }
     };
 
-    fetchData();
-  }, [walletAddress, router]);
+    if (walletAddress) {
+      fetchData();
+    }
+  }, [walletAddress]);
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};

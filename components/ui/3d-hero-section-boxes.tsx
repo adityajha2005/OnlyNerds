@@ -58,7 +58,7 @@ const HeroSection = () => {
           <HeroContent />
         </div>
       </div>
-
+{/* 
       <div className="bg-black relative z-10" style={{ marginTop: "-10vh" }}>
         <div className="container mx-auto px-4 py-16 text-white">
           <h2 className="text-4xl font-bold text-center mb-8">Start Your Learning Journey</h2>
@@ -68,7 +68,7 @@ const HeroSection = () => {
         </div>
         <CoursesPage />
         <ScreenshotSection screenshotRef={screenshotRef} />
-      </div>
+      </div> */}
     </div>
   )
 }
