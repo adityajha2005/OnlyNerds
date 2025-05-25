@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { BrowserProvider } from "ethers";
+import { ethers } from "ethers";
 import { persist } from "zustand/middleware";
 
 // Network configuration for BNB Smart Chain Testnet
@@ -17,7 +17,7 @@ const networkConfig = {
 
 interface MetaMaskStore {
   metaMaskIsConnected: boolean;
-  evmProvider: BrowserProvider | null;
+  evmProvider: ethers.providers.Web3Provider | null;
   walletAddress: string;
   connectMetaMask: () => Promise<void>;
   disconnectMetaMask: () => void;
@@ -44,7 +44,7 @@ export const useMetaMaskStore = create<MetaMaskStore>()(
           // Check if already connected
           const accounts = await window.ethereum.request({ method: 'eth_accounts' });
           if (accounts.length > 0) {
-            const provider = new BrowserProvider(window.ethereum);
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
             const signer = await provider.getSigner();
             const address = await signer.getAddress();
 
@@ -64,7 +64,7 @@ export const useMetaMaskStore = create<MetaMaskStore>()(
                 walletAddress: "",
               }));
             } else {
-              const provider = new BrowserProvider(window.ethereum);
+              const provider = new ethers.providers.Web3Provider(window.ethereum);
               const signer = await provider.getSigner();
               const address = await signer.getAddress();
 
@@ -93,10 +93,10 @@ export const useMetaMaskStore = create<MetaMaskStore>()(
         }
 
         try {
-          const provider = new BrowserProvider(window.ethereum);
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
           const network = await provider.getNetwork();
 
-          if (network.chainId !== BigInt("0x61")) { // Check for BSC Testnet
+          if (network.chainId !== 97) { // Check for BSC Testnet
             await window.ethereum.request({
               method: "wallet_addEthereumChain",
               params: [networkConfig],
