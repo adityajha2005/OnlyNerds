@@ -295,7 +295,7 @@ export function CreateCourseModal({
                 setOpen(false);
                 resetForm();
               }}
-              className="flex-1 border-white/20 text-white hover:bg-white/10"
+              className="flex-1 border-white/20 text-white bg-black"
               disabled={loading}
             >
               Cancel
